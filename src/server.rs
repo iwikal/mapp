@@ -1,23 +1,17 @@
 use std::io;
-use std::vec;
 use std::io::prelude::*;
-use std::net::TcpStream;
 use std::net::TcpListener;
+use std::net::TcpStream;
 use std::time::Instant;
+use std::vec;
 
 use unicode_truncate::UnicodeTruncateStr;
 
-use libplen::messages::{
-    ClientMessage,
-    ClientInput,
-    MessageReader,
-    ServerMessage,
-    SoundEffect
-};
-use libplen::player::Player;
-use libplen::gamestate;
 use libplen::constants;
-use libplen::math::{Vec2, vec2};
+use libplen::gamestate;
+use libplen::math::{vec2, Vec2};
+use libplen::messages::{ClientInput, ClientMessage, MessageReader, ServerMessage, SoundEffect};
+use libplen::player::Player;
 
 fn send_bytes(bytes: &[u8], stream: &mut TcpStream) -> io::Result<()> {
     let mut start = 0;
@@ -26,25 +20,20 @@ fn send_bytes(bytes: &[u8], stream: &mut TcpStream) -> io::Result<()> {
             Ok(n) => {
                 if n < bytes.len() - start {
                     start = start + n;
-                }
-                else {
-                    break Ok(())
+                } else {
+                    break Ok(());
                 }
             }
-            Err(e) => {
-                 match e.kind() {
-                     io::ErrorKind::WouldBlock => continue,
-                     io::ErrorKind::Interrupted => continue,
-                     _ => return Err(e)
-                 }
-            }
+            Err(e) => match e.kind() {
+                io::ErrorKind::WouldBlock => continue,
+                io::ErrorKind::Interrupted => continue,
+                _ => return Err(e),
+            },
         }
     }
 }
 
-fn send_server_message(msg: &ServerMessage, stream: &mut TcpStream)
-    -> io::Result<()>
-{
+fn send_server_message(msg: &ServerMessage, stream: &mut TcpStream) -> io::Result<()> {
     let data = bincode::serialize(msg).expect("Failed to encode message");
     let length = data.len() as u16;
     send_bytes(&length.to_be_bytes(), stream)?;
@@ -67,8 +56,7 @@ struct Server {
 
 impl Server {
     pub fn new() -> Self {
-        let listener = TcpListener::bind("0.0.0.0:4444")
-            .unwrap();
+        let listener = TcpListener::bind("0.0.0.0:4444").unwrap();
 
         listener.set_nonblocking(true).unwrap();
 
@@ -76,7 +64,7 @@ impl Server {
 
         Self {
             listener,
-            connections: vec!(),
+            connections: vec![],
             next_id: 0,
             last_time: Instant::now(),
             state: gamestate::GameState::new(),
@@ -105,10 +93,9 @@ impl Server {
                 Ok(mut stream) => {
                     stream.set_nonblocking(true).unwrap();
                     println!("Got new connection {}", self.next_id);
-                    if let Err(_) = send_server_message(
-                        &ServerMessage::AssignId(self.next_id),
-                        &mut stream
-                    ) {
+                    if let Err(_) =
+                        send_server_message(&ServerMessage::AssignId(self.next_id), &mut stream)
+                    {
                         println!("Could not send assign id message");
                         continue;
                     }
@@ -124,34 +111,34 @@ impl Server {
                     // via platform-specific APIs such as epoll or IOCP
                     break;
                 }
-                e => {e.expect("Socket listener error");}
+                e => {
+                    e.expect("Socket listener error");
+                }
             }
         }
     }
 
     fn update_clients(&mut self, delta_time: f32) {
         // Send data to clients
-        let mut clients_to_delete = vec!();
-        let mut sounds_to_play = vec!();
+        let mut clients_to_delete = vec![];
+        let mut sounds_to_play = vec![];
 
         macro_rules! remove_player_on_disconnect {
             ($op:expr, $id:expr) => {
                 match $op {
-                    Ok(_) => {},
-                    Err(e) => {
-                        match e.kind() {
-                            io::ErrorKind::ConnectionReset | io::ErrorKind::BrokenPipe => {
-                                println!("Player {} disconnected", $id);
-                                clients_to_delete.push($id);
-                                break;
-                            }
-                            e => {
-                                panic!("Unhandled network issue: {:?}", e)
-                            }
+                    Ok(_) => {}
+                    Err(e) => match e.kind() {
+                        io::ErrorKind::ConnectionReset | io::ErrorKind::BrokenPipe => {
+                            println!("Player {} disconnected", $id);
+                            clients_to_delete.push($id);
+                            break;
                         }
-                    }
+                        e => {
+                            panic!("Unhandled network issue: {:?}", e)
+                        }
+                    },
                 };
-            }
+            };
         }
 
         for client in self.connections.iter_mut() {
@@ -161,20 +148,17 @@ impl Server {
                 match bincode::deserialize(&message) {
                     Ok(ClientMessage::Input(input)) => {
                         client.input = input;
-                    },
-                    Ok(ClientMessage::JoinGame{ mut name }) => {
+                    }
+                    Ok(ClientMessage::JoinGame { mut name }) => {
                         if name.trim().len() != 0 {
                             name = name.trim().unicode_truncate(20).0.to_string()
                         } else {
                             name = "Mr Whitespace".into();
                         }
 
-                        let player = Player::new(
-                            client.id,
-                            name
-                        );
+                        let player = Player::new(client.id, name);
                         self.state.add_player(player);
-                    },
+                    }
                     Err(_) => {
                         println!("Could not decode message from {}, deleting", client.id);
                         clients_to_delete.push(client.id);
@@ -184,16 +168,13 @@ impl Server {
 
             for player in &mut self.state.players {
                 if player.id == client.id {
-                    player.update(
-                        delta_time,
-                        &client.input,
-                    );
+                    player.update(delta_time, &client.input);
                 }
             }
 
             let result = send_server_message(
                 &ServerMessage::GameState(self.state.clone()),
-                &mut client.message_reader.stream
+                &mut client.message_reader.stream,
             );
             remove_player_on_disconnect!(result, client.id);
         }
@@ -202,18 +183,17 @@ impl Server {
             for client in self.connections.iter_mut() {
                 let result = send_server_message(
                     &ServerMessage::PlaySound(*sound, *pos),
-                    &mut client.message_reader.stream
+                    &mut client.message_reader.stream,
                 );
                 remove_player_on_disconnect!(result, client.id);
             }
         }
 
-        self.state.players.retain(
-            |player| !clients_to_delete.contains(&player.id)
-        );
-        self.connections.retain(
-            |client| !clients_to_delete.contains(&client.id)
-        );
+        self.state
+            .players
+            .retain(|player| !clients_to_delete.contains(&player.id));
+        self.connections
+            .retain(|client| !clients_to_delete.contains(&client.id));
     }
 }
 
@@ -223,4 +203,3 @@ fn main() {
         server.update();
     }
 }
-

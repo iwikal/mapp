@@ -21,9 +21,15 @@ impl MenuState {
 }
 
 impl MenuState {
-    fn draw_player_name(&mut self, canvas: &mut Canvas<Window>, assets: &Assets) -> Result<(), String> {
+    fn draw_player_name(
+        &mut self,
+        canvas: &mut Canvas<Window>,
+        assets: &Assets,
+    ) -> Result<(), String> {
         let (nx, ny) = constants::NAME_POS;
-        let text = assets.font.render(&format!("Hello {}. Press Enter to join", self.name))
+        let text = assets
+            .font
+            .render(&format!("Hello {}. Press Enter to join", self.name))
             .blended((255, 255, 255))
             .expect("Could not render text");
 
@@ -31,9 +37,7 @@ impl MenuState {
         let text_texture = texture_creator.create_texture_from_surface(text).unwrap();
 
         let res_offset = rendering::calculate_resolution_offset(canvas);
-        rendering::draw_texture(
-            canvas, &text_texture, vec2(nx + 10., ny + 10.) + res_offset
-        )
+        rendering::draw_texture(canvas, &text_texture, vec2(nx + 10., ny + 10.) + res_offset)
     }
 
     pub fn update(&mut self) {

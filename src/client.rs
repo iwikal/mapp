@@ -7,36 +7,35 @@ use std::io::prelude::*;
 use std::net::TcpStream;
 use std::time::Instant;
 
+use sdl2::event::Event;
+use sdl2::keyboard::{Keycode, Scancode};
+use sdl2::render::BlendMode;
 use sdl2::render::Canvas;
 use sdl2::video::Window;
-use sdl2::event::Event;
-use sdl2::render::BlendMode;
-use sdl2::keyboard::{Keycode, Scancode};
 
-use libplen::messages::{
-    ClientMessage,
-    ClientInput,
-    MessageReader,
-    ServerMessage,
-    SoundEffect
-};
-use libplen::gamestate;
-use libplen::constants;
-use libplen::math::{Vec2, vec2};
 use assets::Assets;
+use libplen::constants;
+use libplen::gamestate;
+use libplen::math::{vec2, Vec2};
+use libplen::messages::{ClientInput, ClientMessage, MessageReader, ServerMessage, SoundEffect};
 use menu::MenuState;
 
 fn send_client_message(msg: &ClientMessage, stream: &mut TcpStream) {
     let data = bincode::serialize(msg).expect("Failed to encode message");
     let length = data.len() as u16;
-    stream.write(&length.to_be_bytes())
+    stream
+        .write(&length.to_be_bytes())
         .expect("Failed to send message length to server");
-    stream.write(&data)
+    stream
+        .write(&data)
         .expect("Failed to send message to server");
 }
 
 #[derive(PartialEq)]
-enum StateResult { Continue, GotoNext }
+enum StateResult {
+    Continue,
+    GotoNext,
+}
 
 struct MainState {
     my_id: u64,
@@ -59,9 +58,8 @@ impl MainState {
         &mut self,
         assets: &Assets,
         server_reader: &mut MessageReader,
-        keyboard_state: &sdl2::keyboard::KeyboardState
+        keyboard_state: &sdl2::keyboard::KeyboardState,
     ) -> StateResult {
-
         let elapsed = self.last_time.elapsed();
         self.last_time = Instant::now();
         let dt_duration = std::time::Duration::from_millis(1000 / 60);
@@ -73,15 +71,13 @@ impl MainState {
 
         for message in server_reader.iter() {
             match bincode::deserialize(&message).unwrap() {
-                ServerMessage::AssignId(_) => {panic!("Got new ID after intialisation")}
-                ServerMessage::GameState(state) => {
-                    self.game_state = state
-                },
+                ServerMessage::AssignId(_) => {
+                    panic!("Got new ID after intialisation")
+                }
+                ServerMessage::GameState(state) => self.game_state = state,
                 ServerMessage::PlaySound(sound, pos) => {
                     fn play_sound(soundeffect: &sdl2::mixer::Chunk) {
-                        if let Err(e) = sdl2::mixer::Channel::all().play(
-                            soundeffect, 0
-                        ) {
+                        if let Err(e) = sdl2::mixer::Channel::all().play(soundeffect, 0) {
                             println!("SDL mixer error: {}", e);
                         }
                     }
@@ -122,7 +118,8 @@ impl MainState {
             input.x_input += 1.0;
         }
 
-        self.map.update(elapsed.as_secs_f32(), &self.game_state, self.my_id);
+        self.map
+            .update(elapsed.as_secs_f32(), &self.game_state, self.my_id);
 
         let input_message = ClientMessage::Input(input);
         send_client_message(&input_message, &mut server_reader.stream);
@@ -131,10 +128,7 @@ impl MainState {
     }
 
     fn draw(&mut self, canvas: &mut Canvas<Window>, assets: &mut Assets) -> Result<(), String> {
-        self.map.draw(
-            self.my_id,
-            canvas,
-        )?;
+        self.map.draw(self.my_id, canvas)?;
 
         for player in &self.game_state.players {
             let w = 10;
@@ -144,7 +138,7 @@ impl MainState {
                 player.position.x as i32 - w as i32 / 2,
                 player.position.y as i32 - h as i32 / 2,
                 w as u32,
-                h as u32
+                h as u32,
             );
             canvas.set_draw_color(sdl2::pixels::Color::RGB(255, 25, 25));
 
@@ -153,16 +147,16 @@ impl MainState {
 
         Ok(())
     }
-
 }
 
 pub fn main() -> Result<(), String> {
-    let host = std::env::var("SERVER")
-        .unwrap_or(String::from("localhost:4444"));
+    let host = std::env::var("SERVER").unwrap_or(String::from("localhost:4444"));
     let stream = TcpStream::connect(host).expect("Could not connect to server");
     println!("Connected to server");
 
-    stream.set_nonblocking(true).expect("Could not set socket as nonblocking");
+    stream
+        .set_nonblocking(true)
+        .expect("Could not set socket as nonblocking");
     let mut reader = MessageReader::new(stream);
 
     let msg = loop {
@@ -183,12 +177,19 @@ pub fn main() -> Result<(), String> {
     let video_subsystem = sdl.video().expect("Could not initialize SDL video");
 
     let window = video_subsystem
-        .window("very nice gem", constants::WINDOW_SIZE as u32, constants::WINDOW_SIZE as u32)
+        .window(
+            "very nice gem",
+            constants::WINDOW_SIZE as u32,
+            constants::WINDOW_SIZE as u32,
+        )
         .resizable()
         .build()
         .expect("Could not create window");
 
-    let mut canvas = window.into_canvas().build().expect("Could not create canvas");
+    let mut canvas = window
+        .into_canvas()
+        .build()
+        .expect("Could not create canvas");
     canvas.set_blend_mode(BlendMode::Blend);
     let texture_creator = canvas.texture_creator();
 
@@ -197,10 +198,10 @@ pub fn main() -> Result<(), String> {
     let format = sdl2::mixer::AUDIO_S16LSB; // signed 16 bit samples, in little-endian byte order
     let channels = sdl2::mixer::DEFAULT_CHANNELS; // Stereo
     let chunk_size = 1_024;
-    sdl2::mixer::open_audio(frequency, format, channels, chunk_size).expect("Could not open SDL mixer audio");
-    let _mixer_context = sdl2::mixer::init(
-        sdl2::mixer::InitFlag::OGG
-    ).expect("Could not initialize SDL mixer");
+    sdl2::mixer::open_audio(frequency, format, channels, chunk_size)
+        .expect("Could not open SDL mixer audio");
+    let _mixer_context =
+        sdl2::mixer::init(sdl2::mixer::InitFlag::OGG).expect("Could not initialize SDL mixer");
 
     // Allows 64 sounds to play simultaneously
     sdl2::mixer::allocate_channels(64);
@@ -222,19 +223,19 @@ pub fn main() -> Result<(), String> {
         'menuloop: loop {
             for event in event_pump.poll_iter() {
                 match event {
-                    Event::Quit{..} => break 'mainloop,
-                    Event::KeyDown {keycode: Some(kc), ..} => {
-                        match kc {
-                            Keycode::Return => {
-                                break 'menuloop;
-                            }
-                            Keycode::Backspace => {
-                                menu_state.name.pop();
-                            }
-                            _ => {}
+                    Event::Quit { .. } => break 'mainloop,
+                    Event::KeyDown {
+                        keycode: Some(kc), ..
+                    } => match kc {
+                        Keycode::Return => {
+                            break 'menuloop;
                         }
-                    }
-                    Event::TextInput {text, ..} => {
+                        Keycode::Backspace => {
+                            menu_state.name.pop();
+                        }
+                        _ => {}
+                    },
+                    Event::TextInput { text, .. } => {
                         if menu_state.name.chars().count() < 20 {
                             menu_state.name += &text;
                         }
@@ -246,8 +247,7 @@ pub fn main() -> Result<(), String> {
 
             // Ignore all messages so we don't freeze the server
             reader.fetch_bytes().unwrap();
-            for _ in reader.iter() {
-            }
+            for _ in reader.iter() {}
 
             menu_state.update();
 
@@ -261,14 +261,14 @@ pub fn main() -> Result<(), String> {
             &ClientMessage::JoinGame {
                 name: menu_state.name.clone(),
             },
-            &mut reader.stream
+            &mut reader.stream,
         );
 
         let main_state = &mut MainState::new(my_id);
         'gameloop: loop {
             for event in event_pump.poll_iter() {
                 match event {
-                    Event::Quit{..} => break 'mainloop,
+                    Event::Quit { .. } => break 'mainloop,
                     _ => {}
                 }
             }
