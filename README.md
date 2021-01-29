@@ -1,8 +1,6 @@
-# Plen
+# Mapp
 
-Fly the plen blyat
-
-A multiplayer shoot at each other with planes game
+A multiplayer capture the flag game.
 
 ## Usage instructions
 
@@ -31,5 +29,3 @@ Extract them both according to the same instructions as noted in the SDL2 tutori
 Plen should now compile and you should be able to run the game under Windows.
 
 ## Attribution
-Flame animation by serenajeanne used under CC-BY-SA 3.0
-[opengameart](https://opengameart.org/content/small-flame-pack-0)
