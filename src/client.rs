@@ -109,10 +109,10 @@ impl MainState {
 
         let mut input = ClientInput::new();
         if keyboard_state.is_scancode_pressed(Scancode::W) {
-            input.y_input += 1.0;
+            input.y_input -= 1.0;
         }
         if keyboard_state.is_scancode_pressed(Scancode::S) {
-            input.y_input -= 1.0;
+            input.y_input += 1.0;
         }
 
         if keyboard_state.is_scancode_pressed(Scancode::A) {
@@ -135,6 +135,21 @@ impl MainState {
             self.my_id,
             canvas,
         )?;
+
+        for player in &self.game_state.players {
+            let w = 10;
+            let h = 10;
+
+            let dest_rect = sdl2::rect::Rect::new(
+                player.position.x as i32 - w as i32 / 2,
+                player.position.y as i32 - h as i32 / 2,
+                w as u32,
+                h as u32
+            );
+            canvas.set_draw_color(sdl2::pixels::Color::RGB(255, 25, 25));
+
+            canvas.fill_rect(dest_rect);
+        }
 
         Ok(())
     }

@@ -11,3 +11,4 @@ pub const MENU_BACKGROUND_COLOR: (u8, u8, u8) = (108, 57, 57);
 
 pub const NAME_POS: (f32, f32) = (50., 150.);
 
+pub const PLAYER_SPEED: f32 = 50.;

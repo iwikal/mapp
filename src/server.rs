@@ -161,7 +161,6 @@ impl Server {
                 match bincode::deserialize(&message) {
                     Ok(ClientMessage::Input(input)) => {
                         client.input = input;
-                        println!("Player {}: {},{}.", client.id, client.input.x_input, client.input.y_input);
                     },
                     Ok(ClientMessage::JoinGame{ mut name }) => {
                         if name.trim().len() != 0 {
@@ -183,12 +182,20 @@ impl Server {
                 }
             }
 
+            for player in &mut self.state.players {
+                if player.id == client.id {
+                    player.update(
+                        delta_time,
+                        &client.input,
+                    );
+                }
+            }
+
             let result = send_server_message(
                 &ServerMessage::GameState(self.state.clone()),
                 &mut client.message_reader.stream
             );
             remove_player_on_disconnect!(result, client.id);
-
         }
 
         for (sound, pos) in &sounds_to_play {

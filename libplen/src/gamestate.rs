@@ -19,14 +19,6 @@ impl GameState {
         }
     }
 
-    /**
-     *  Updates the gamestate and returns
-     *  (
-     *  vec with player ids that got hit with bullets,
-     *  vec with positions where powerups where picked up,
-     *  vec with positions where lasers are fired
-     *  )
-     */
     pub fn update(&mut self, delta: f32)
     {
         // update game state
