@@ -1,6 +1,6 @@
 use std::sync::mpsc;
 use serde_derive::{Serialize, Deserialize};
-use crate::math::Vec2;
+use crate::math::{self, Vec2};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct DebugLine {
@@ -18,7 +18,7 @@ impl DebugLine {
     pub fn from_angle(start: Vec2, angle: f32, length: f32) -> Self {
         Self {
             start,
-            end: start + Vec2::from_direction(angle, length),
+            end: start + math::vec2_from_direction(angle, length),
             color: (255, 255, 255, 255)
         }
     }

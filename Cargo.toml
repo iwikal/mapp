@@ -8,14 +8,21 @@ build = "build.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+ab_glyph = "0.2"
 bincode = "1.2.1"
 rand = "0.7.2"
 rand_derive = "0.5.0"
 whoami = "0.6.0"
-sdl2 = {version = "0.32.2", features = ["image", "mixer", "ttf"]}
+sdl2 = {version = "0.34", features = ["image", "mixer", "ttf"]}
 libplen = {path="libplen"}
 unicode-truncate = "0.1.1"
 enum-map = "0.6.2"
+luminance = "0.43"
+luminance-derive = "0.6"
+luminance-gl = "0.16"
+luminance-glyph = "0.2"
+gl = "0.14"
+ultraviolet = "0.7.5"
 
 [[bin]]
 name = "server"
