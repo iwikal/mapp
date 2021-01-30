@@ -23,12 +23,11 @@ use luminance_derive::{Vertex, Semantics};
 
 use luminance_glyph::{GlyphBrushBuilder, Section, Text};
 
-use ultraviolet::{Vec4, Mat4};
+use ultraviolet::{Vec4, Mat4, Vec2};
 
 use assets::Assets;
 use libplen::constants;
 use libplen::gamestate;
-use libplen::math::{vec2, Vec2};
 use libplen::messages::{ClientInput, ClientMessage, MessageReader, ServerMessage, SoundEffect};
 use menu::MenuState;
 
@@ -356,15 +355,6 @@ pub fn main() -> Result<(), String> {
                         // Draw text.
                         glyph_brush.draw_queued(&mut pipeline, &mut shd_gate, 1024, 720)?;
 
-                        // Start shading with our program.
-                        shd_gate.shade(&mut program, |_, _, mut rdr_gate| {
-                            // Start rendering things with the default render state provided by
-                            // luminance.
-                            rdr_gate.render(&RenderState::default(), |mut tess_gate| {
-                                tess_gate.render(&direct_triangles)
-                            })
-                        })?;
-
                         Ok(())
                     },
                 )
@@ -400,23 +390,36 @@ pub fn main() -> Result<(), String> {
                 }
             }
 
-            /*
-            rendering::setup_coordinates(&mut canvas)?;
+            glyph_brush.process_queued(&mut surface);
 
-            canvas.set_draw_color(sdl2::pixels::Color::RGB(25, 25, 25));
-            canvas.clear();
+            // Create a new dynamic pipeline that will render to the back buffer and must clear it
+            // with pitch black prior to do any render to it.
+            surface
+                .new_pipeline_gate()
+                .pipeline(
+                    &back_buffer,
+                    &PipelineState::default(),
+                    |mut pipeline, mut shd_gate| {
+                        // Draw text.
+                        glyph_brush.draw_queued(&mut pipeline, &mut shd_gate, 1024, 720)?;
 
-            let state_result =
-                main_state.update(&assets, &mut reader, &event_pump.keyboard_state());
-            main_state.draw(&mut canvas, &mut assets).unwrap();
+                        // Start shading with our program.
+                        shd_gate.shade(&mut program, |_, _, mut rdr_gate| {
+                            // Start rendering things with the default render state provided by
+                            // luminance.
+                            rdr_gate.render(&RenderState::default(), |mut tess_gate| {
+                                tess_gate.render(&direct_triangles)
+                            })
+                        })?;
 
-            canvas.present();
+                        Ok(())
+                    },
+                )
+                .assume()
+                .into_result()
+                .expect("Failed to render");
 
-
-            if state_result == StateResult::GotoNext {
-                break 'gameloop;
-            }
-            */
+            surface.window().gl_swap_window();
         }
     }
 
