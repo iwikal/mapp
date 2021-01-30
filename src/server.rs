@@ -11,7 +11,7 @@ use libplen::constants;
 use libplen::gamestate;
 use libplen::math::{vec2, Vec2};
 use libplen::messages::{ClientInput, ClientMessage, MessageReader, ServerMessage, SoundEffect};
-use libplen::player::Player;
+use libplen::player::{Player, PlayerType};
 
 fn send_bytes(bytes: &[u8], stream: &mut TcpStream) -> io::Result<()> {
     let mut start = 0;
@@ -141,6 +141,8 @@ impl Server {
             };
         }
 
+        let mut players_to_add = vec!();
+
         for client in self.connections.iter_mut() {
             remove_player_on_disconnect!(client.message_reader.fetch_bytes(), client.id);
 
@@ -149,15 +151,16 @@ impl Server {
                     Ok(ClientMessage::Input(input)) => {
                         client.input = input;
                     }
-                    Ok(ClientMessage::JoinGame { mut name }) => {
+                    Ok(ClientMessage::JoinTeam { team_id, player_type, name }) => {
+                        players_to_add.push((client.id, team_id, player_type, name));
+                    }
+                    Ok(ClientMessage::SetName { mut name }) => {
                         if name.trim().len() != 0 {
                             name = name.trim().unicode_truncate(20).0.to_string()
                         } else {
                             name = "Mr Whitespace".into();
                         }
-
-                        let player = Player::new(client.id, name);
-                        self.state.add_player(player);
+                        self.state.set_player_name(client.id, name);
                     }
                     Err(_) => {
                         println!("Could not decode message from {}, deleting", client.id);
@@ -166,10 +169,8 @@ impl Server {
                 }
             }
 
-            for player in &mut self.state.players {
-                if player.id == client.id {
-                    player.update(delta_time, &client.input);
-                }
+            if let Some(player) = self.state.get_mut_player_by_id(client.id) {
+                player.update(delta_time, &client.input);
             }
 
             let result = send_server_message(
@@ -177,6 +178,10 @@ impl Server {
                 &mut client.message_reader.stream,
             );
             remove_player_on_disconnect!(result, client.id);
+        }
+
+        for (client_id, team_id, player_type, name) in players_to_add {
+            self.try_add_player_to_team(client_id, team_id, player_type, name);
         }
 
         for (sound, pos) in &sounds_to_play {
@@ -189,11 +194,18 @@ impl Server {
             }
         }
 
-        self.state
-            .players
-            .retain(|player| !clients_to_delete.contains(&player.id));
+        for id in &clients_to_delete {
+            self.state.remove_player(*id);
+        }
+
         self.connections
             .retain(|client| !clients_to_delete.contains(&client.id));
+    }
+
+    fn try_add_player_to_team(
+        &mut self, player_id: u64, team_id: u64, player_type: PlayerType, name: String
+    ) {
+        self.state.try_add_player_to_team(player_id, team_id, player_type, name);
     }
 }
 

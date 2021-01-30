@@ -101,6 +101,7 @@ impl ClientInput {
 
 #[derive(Serialize, Deserialize)]
 pub enum ClientMessage {
+    JoinTeam { team_id: u64, player_type: player::PlayerType, name: String },
     Input(ClientInput),
-    JoinGame { name: String },
+    SetName { name: String },
 }

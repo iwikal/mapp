@@ -8,6 +8,7 @@ use std::net::TcpStream;
 use std::time::Instant;
 
 use sdl2::event::Event;
+use sdl2::mouse::MouseButton;
 use sdl2::keyboard::{Keycode, Scancode};
 use sdl2::render::BlendMode;
 use sdl2::render::Canvas;
@@ -130,20 +131,20 @@ impl MainState {
     fn draw(&mut self, canvas: &mut Canvas<Window>, assets: &mut Assets) -> Result<(), String> {
         self.map.draw(self.my_id, canvas)?;
 
-        for player in &self.game_state.players {
-            let w = 10;
-            let h = 10;
+        // for player in &self.game_state.players {
+        //     let w = 10;
+        //     let h = 10;
 
-            let dest_rect = sdl2::rect::Rect::new(
-                player.position.x as i32 - w as i32 / 2,
-                player.position.y as i32 - h as i32 / 2,
-                w as u32,
-                h as u32,
-            );
-            canvas.set_draw_color(sdl2::pixels::Color::RGB(255, 25, 25));
+        //     let dest_rect = sdl2::rect::Rect::new(
+        //         player.position.x as i32 - w as i32 / 2,
+        //         player.position.y as i32 - h as i32 / 2,
+        //         w as u32,
+        //         h as u32,
+        //     );
+        //     canvas.set_draw_color(sdl2::pixels::Color::RGB(255, 25, 25));
 
-            canvas.fill_rect(dest_rect);
-        }
+        //     canvas.fill_rect(dest_rect);
+        // }
 
         Ok(())
     }
@@ -215,12 +216,14 @@ pub fn main() -> Result<(), String> {
     let mut event_pump = sdl.event_pump().expect("Could not get event pump");
 
     'mainloop: loop {
-        let menu_state = &mut MenuState::new();
+        let menu_state = &mut MenuState::new(my_id);
 
         video_subsystem.text_input().start();
         menu_state.name = name;
 
         'menuloop: loop {
+            let mut current_mouse_click: Option<(i32, i32)> = None;
+
             for event in event_pump.poll_iter() {
                 match event {
                     Event::Quit { .. } => break 'mainloop,
@@ -240,16 +243,22 @@ pub fn main() -> Result<(), String> {
                             menu_state.name += &text;
                         }
                     }
+                    Event::MouseButtonDown { x, y, mouse_btn, .. } =>
+                        match mouse_btn {
+                            MouseButton::Left => {
+                                current_mouse_click = Some((x, y));
+                            },
+                            _ => { }
+                        }
                     _ => {}
                 }
             }
             rendering::setup_coordinates(&mut canvas)?;
 
-            // Ignore all messages so we don't freeze the server
-            reader.fetch_bytes().unwrap();
-            for _ in reader.iter() {}
-
-            menu_state.update();
+            let messages_to_send = menu_state.update(&mut reader, current_mouse_click);
+            for message in messages_to_send {
+                send_client_message(&message, &mut reader.stream);
+            }
 
             menu_state.draw(&mut canvas, &assets).unwrap();
         }
@@ -257,12 +266,12 @@ pub fn main() -> Result<(), String> {
 
         name = menu_state.name.clone();
 
-        send_client_message(
-            &ClientMessage::JoinGame {
-                name: menu_state.name.clone(),
-            },
-            &mut reader.stream,
-        );
+        // send_client_message(
+        //     &ClientMessage::JoinGame {
+        //         name: menu_state.name.clone(),
+        //     },
+        //     &mut reader.stream,
+        // );
 
         let main_state = &mut MainState::new(my_id);
         'gameloop: loop {
