@@ -15,6 +15,7 @@ use luminance_glyph::{GlyphBrushBuilder, Section, Text};
 
 use ultraviolet::{Mat4, Vec3};
 
+use libplen::level::{self, Level};
 use libplen::messages::{ClientInput, ClientMessage, MessageReader, ServerMessage, SoundEffect};
 use libplen::player;
 
@@ -49,7 +50,7 @@ impl AgentState {
         AgentState {
             my_id,
             game_state: gamestate::GameState::new(),
-            map: map::Map::new(),
+            map: map::Map::new(level::example_level()),
             last_time: Instant::now(),
         }
     }

@@ -9,6 +9,7 @@ use unicode_truncate::UnicodeTruncateStr;
 
 use libplen::constants;
 use libplen::gamestate;
+use libplen::level::{self, Level};
 use libplen::math::{vec2, Vec2};
 use libplen::messages::{ClientInput, ClientMessage, MessageReader, ServerMessage, SoundEffect};
 use libplen::player::{Player, PlayerType};
@@ -50,6 +51,7 @@ struct Server {
     listener: TcpListener,
     connections: Vec<Client>,
     state: gamestate::GameState,
+    level: Level,
     next_id: u64,
     last_time: Instant,
 }
@@ -68,6 +70,7 @@ impl Server {
             next_id: 0,
             last_time: Instant::now(),
             state: gamestate::GameState::new(),
+            level: level::example_level(),
         }
     }
 

@@ -19,7 +19,8 @@ use sdl2::video::Window;
 use assets::Assets;
 use libplen::constants;
 use libplen::gamestate;
-use libplen::math::Vec2;
+use libplen::level::{self, Level};
+use libplen::math::{vec2, Vec2};
 use libplen::messages::{ClientInput, ClientMessage, MessageReader, ServerMessage, SoundEffect};
 use menu::MenuState;
 

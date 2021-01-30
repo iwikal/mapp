@@ -1,10 +1,10 @@
+use std::collections::HashMap;
 use std::sync::mpsc::Receiver;
 
 use serde_derive::{Serialize, Deserialize};
 
-use crate::player;
 use crate::math::{Vec2, vec2, wrap_around};
-use std::collections::HashMap;
+use crate::player::{self, Player};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct GameState {
@@ -18,12 +18,10 @@ impl GameState {
         GameState {
             teams: HashMap::new(),
             game_started: false,
-            // init server side game state stuff here
         }
     }
 
-    pub fn update(&mut self, delta: f32)
-    {
+    pub fn update(&mut self, delta: f32) {
         // update game state
     }
 
