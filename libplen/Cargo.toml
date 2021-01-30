@@ -16,3 +16,4 @@ strum_macros = "0.16.0"
 bincode = "1.2.0"
 enum_dispatch = "0.2.0"
 enum-map = "0.6.2"
+ultraviolet = { version = "0.7", features = ["serde"] }

@@ -320,6 +320,7 @@ dependencies = [
  "serde_derive",
  "strum",
  "strum_macros",
+ "ultraviolet",
 ]
 
 [[package]]
@@ -794,6 +795,7 @@ version = "0.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c6650a58414f856056ccc651abd3b9d80c384206250c3a621224497503a0f9f2"
 dependencies = [
+ "serde",
  "wide",
 ]
 

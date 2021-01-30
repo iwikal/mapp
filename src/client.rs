@@ -294,16 +294,6 @@ pub fn main() -> Result<(), String> {
         GlyphBrushBuilder::using_font(font).build(&mut surface)
     };
 
-    glyph_brush.queue(
-        Section::default().add_text(
-            Text::new("Font test")
-            .with_color([1.0, 1.0, 1.0, 1.0])
-            .with_scale(80.0),
-        ),
-    );
-
-    glyph_brush.process_queued(&mut surface);
-
     'mainloop: loop {
         let menu_state = &mut MenuState::new();
 
@@ -338,30 +328,49 @@ pub fn main() -> Result<(), String> {
             }
             // rendering::setup_coordinates(&mut canvas)?;
 
+            glyph_brush.queue(
+                Section::default()
+                    .with_screen_position(Vec2::new(100., 100.))
+                    .add_text(
+                        Text::new("Enter your name:\n")
+                            .with_color([0.9, 0.9, 0.9, 0.9])
+                            .with_scale(50.0),
+                    )
+                    .add_text(
+                        Text::new(&menu_state.name)
+                            .with_color([1.0, 1.0, 1.0, 1.0])
+                            .with_scale(50.0),
+                    ),
+            );
+
+            glyph_brush.process_queued(&mut surface);
+
             // Create a new dynamic pipeline that will render to the back buffer and must clear it
             // with pitch black prior to do any render to it.
-            let render = surface
+            surface
                 .new_pipeline_gate()
                 .pipeline(
                     &back_buffer,
                     &PipelineState::default(),
                     |mut pipeline, mut shd_gate| {
+                        // Draw text.
+                        glyph_brush.draw_queued(&mut pipeline, &mut shd_gate, 1024, 720)?;
+
                         // Start shading with our program.
                         shd_gate.shade(&mut program, |_, _, mut rdr_gate| {
                             // Start rendering things with the default render state provided by
                             // luminance.
                             rdr_gate.render(&RenderState::default(), |mut tess_gate| {
-                                // Pick the right tessellation to use depending on the mode chosen
-                                // and render it to the surface.
                                 tess_gate.render(&direct_triangles)
                             })
                         })?;
 
-                        glyph_brush.draw_queued(&mut pipeline, &mut shd_gate, 1024, 720)?;
                         Ok(())
                     },
                 )
-                .assume();
+                .assume()
+                .into_result()
+                .expect("Failed to render");
 
             surface.window().gl_swap_window();
 
