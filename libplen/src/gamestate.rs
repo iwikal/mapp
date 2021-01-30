@@ -34,8 +34,8 @@ impl GameState {
 
     pub fn get_player_by_id(&self, id: u64) -> Option<&player::Player> {
         for (_, team) in &self.teams {
-            if id == team.dispatcher.as_ref().unwrap().id {
-                return Some(&team.dispatcher.as_ref().unwrap());
+            if Some(id) == team.dispatcher.as_ref().map(|player| player.id) {
+                return team.dispatcher.as_ref();
             }
             for agent in &team.agents {
                 if id == agent.id {

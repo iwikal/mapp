@@ -13,9 +13,10 @@ use luminance::shader::BuiltProgram;
 use luminance_derive::{Semantics, Vertex};
 use luminance_glyph::{GlyphBrushBuilder, Section, Text};
 
-use ultraviolet::Mat4;
+use ultraviolet::{Mat4, Vec3};
 
 use libplen::messages::{ClientInput, ClientMessage, MessageReader, ServerMessage, SoundEffect};
+use libplen::player;
 
 use crate::{assets::SoundAssets, constants, gamestate, map, surface, StateResult};
 
@@ -115,6 +116,11 @@ impl AgentState {
 
         StateResult::Continue
     }
+
+    fn myself(&self) -> &player::Player {
+        let Self { my_id, game_state, .. } = self;
+        game_state.get_player_by_id(*my_id).unwrap()
+    }
 }
 
 pub fn gameloop(
@@ -138,8 +144,8 @@ pub fn gameloop(
     let mut back_buffer = surface.back_buffer().expect("Could not get back buffer");
 
     let mut sprite_program = {
-        let vs = include_str!("../shaders/quad.vert");
-        let fs = include_str!("../shaders/quad.frag");
+        let vs = include_str!("../../shaders/sprite.vert");
+        let fs = include_str!("../../shaders/sprite.frag");
         let BuiltProgram { program, warnings } = surface
             .new_shader_program::<(), (), sprite::SpriteInterface>()
             .from_strings(vs, None, None, fs)
@@ -152,7 +158,7 @@ pub fn gameloop(
         program
     };
 
-    let quad_tess = surface
+    let sprite_tess = surface
         .new_tess()
         .set_vertex_nb(4)
         .set_mode(luminance::tess::Mode::TriangleFan)
@@ -160,22 +166,21 @@ pub fn gameloop(
         .unwrap();
 
     let mut glyph_brush = {
-        let ttf = include_bytes!("../resources/yoster.ttf");
+        let ttf = include_bytes!("../../resources/yoster.ttf");
         let font = ab_glyph::FontArc::try_from_slice(ttf).expect("Could not load font");
         GlyphBrushBuilder::using_font(font).build(&mut surface)
     };
 
     let agent_state = &mut AgentState::new(my_id);
 
-    let (width, height) = surface.window().size();
-
-    fn make_projection_matrix(width: f32, height: f32) -> Mat4 {
+    fn make_projection_matrix(surface: &surface::Sdl2Surface) -> Mat4 {
+        let (width, height) = surface.window().size();
+        let aspect_ratio = width as f32 / height as f32;
         let fov = 90_f32.to_radians();
-        let aspect_ratio = width / height;
         ultraviolet::projection::perspective_gl(fov, aspect_ratio, 0.01, 100.0)
     }
 
-    let mut projection = make_projection_matrix(width as _, height as _);
+    let mut projection = make_projection_matrix(&surface);
     let mut resize = false;
 
     let mut flower_sprite = sprite::load_sprite(&mut surface, "resources/flower.png");
@@ -201,11 +206,17 @@ pub fn gameloop(
 
         if resize {
             back_buffer = surface.back_buffer().unwrap();
+            projection = make_projection_matrix(&surface);
             resize = false;
         }
 
         agent_state.update(sounds, server_reader, &event_pump.keyboard_state());
         glyph_brush.process_queued(&mut surface);
+
+        // let myself = agent_state.myself();
+
+        let my_pos = Vec3::new(0., 0., 1.); // FIXME
+        let view = Mat4::from_translation(-my_pos);
 
         // Create a new dynamic pipeline that will render to the back buffer and must clear it
         // with pitch black prior to do any render to it.
@@ -223,11 +234,13 @@ pub fn gameloop(
                     // Start shading with our program.
                     shd_gate.shade(&mut sprite_program, |mut iface, uni, mut rdr_gate| {
                         iface.set(&uni.tex, bound_tex.binding());
+                        iface.set(&uni.view, view.into());
+                        iface.set(&uni.projection, projection.into());
 
                         // Start rendering things with the default render state provided by
                         // luminance.
                         rdr_gate.render(&RenderState::default(), |mut tess_gate| {
-                            tess_gate.render(&quad_tess)
+                            tess_gate.render(&sprite_tess)
                         })
                     })?;
 

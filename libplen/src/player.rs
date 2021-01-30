@@ -3,13 +3,13 @@ use crate::constants::PLAYER_SPEED;
 use crate::math::{Vec2, vec2};
 use crate::messages::ClientInput;
 
-#[derive(Serialize, Deserialize, Clone, Copy)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
 pub enum PlayerType {
     Dispatcher,
     Agent
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Player {
     pub id: u64,
     pub name: String,
@@ -25,10 +25,10 @@ impl Player {
         player_type: PlayerType
     ) -> Player {
         Player {
-            id: id,
-            name: name,
+            id,
+            name,
             position: vec2(0., 0.),
-            player_type: player_type
+            player_type,
         }
     }
 
@@ -38,7 +38,7 @@ impl Player {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Team {
     pub id: u64,
     pub name: String,

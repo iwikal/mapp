@@ -15,6 +15,8 @@ pub type Sprite = Texture<GL33, Dim2, NormRGBA8UI>;
 #[derive(UniformInterface)]
 pub struct SpriteInterface {
     pub tex: Uniform<TextureBinding<Dim2, NormUnsigned>>,
+    pub view: Uniform<[[f32; 4]; 4]>,
+    pub projection: Uniform<[[f32; 4]; 4]>,
 }
 
 pub fn load_sprite(
