@@ -3,6 +3,7 @@ mod map;
 mod menu;
 mod rendering;
 mod surface;
+mod agent;
 
 use std::io::prelude::*;
 use std::net::TcpStream;
@@ -14,24 +15,14 @@ use sdl2::render::BlendMode;
 use sdl2::render::Canvas;
 use sdl2::video::Window;
 
-use luminance::context::GraphicsContext as _;
-use luminance::pipeline::PipelineState;
-use luminance::shader::BuiltProgram;
-use luminance::render_state::RenderState;
-
-use luminance_derive::{Vertex, Semantics};
-
-use luminance_glyph::{GlyphBrushBuilder, Section, Text};
-
-use ultraviolet::{Vec4, Mat4, Vec2};
-
 use assets::Assets;
 use libplen::constants;
 use libplen::gamestate;
+use libplen::math::Vec2;
 use libplen::messages::{ClientInput, ClientMessage, MessageReader, ServerMessage, SoundEffect};
 use menu::MenuState;
 
-fn send_client_message(msg: &ClientMessage, stream: &mut TcpStream) {
+pub fn send_client_message(msg: &ClientMessage, stream: &mut TcpStream) {
     let data = bincode::serialize(msg).expect("Failed to encode message");
     let length = data.len() as u16;
     stream
@@ -43,169 +34,11 @@ fn send_client_message(msg: &ClientMessage, stream: &mut TcpStream) {
 }
 
 #[derive(PartialEq)]
-enum StateResult {
+pub enum StateResult {
     Continue,
     GotoNext,
+    Quit,
 }
-
-struct MainState {
-    my_id: u64,
-    game_state: gamestate::GameState,
-    map: map::Map,
-    last_time: Instant,
-}
-
-impl MainState {
-    fn new(my_id: u64) -> MainState {
-        MainState {
-            my_id,
-            game_state: gamestate::GameState::new(),
-            map: map::Map::new(),
-            last_time: Instant::now(),
-        }
-    }
-
-    fn update(
-        &mut self,
-        assets: &Assets,
-        server_reader: &mut MessageReader,
-        keyboard_state: &sdl2::keyboard::KeyboardState,
-    ) -> StateResult {
-        let elapsed = self.last_time.elapsed();
-        self.last_time = Instant::now();
-        let dt_duration = std::time::Duration::from_millis(1000 / 60);
-        if elapsed < dt_duration {
-            std::thread::sleep(dt_duration - elapsed);
-        }
-
-        server_reader.fetch_bytes().unwrap();
-
-        for message in server_reader.iter() {
-            match bincode::deserialize(&message).unwrap() {
-                ServerMessage::AssignId(_) => {
-                    panic!("Got new ID after intialisation")
-                }
-                ServerMessage::GameState(state) => self.game_state = state,
-                ServerMessage::PlaySound(sound, pos) => {
-                    fn play_sound(soundeffect: &sdl2::mixer::Chunk) {
-                        if let Err(e) = sdl2::mixer::Channel::all().play(soundeffect, 0) {
-                            println!("SDL mixer error: {}", e);
-                        }
-                    }
-
-                    match sound {
-                        SoundEffect::Powerup => {
-                            play_sound(&assets.powerup);
-                        }
-                        SoundEffect::Gun => {
-                            play_sound(&assets.gun);
-                        }
-                        SoundEffect::Explosion => {
-                            play_sound(&assets.explosion);
-                        }
-                        SoundEffect::LaserCharge => {
-                            play_sound(&assets.laser_charge_sound);
-                        }
-                        SoundEffect::LaserFire => {
-                            play_sound(&assets.laser_fire_sound);
-                        }
-                    }
-                }
-            }
-        }
-
-        let mut input = ClientInput::new();
-        if keyboard_state.is_scancode_pressed(Scancode::W) {
-            input.y_input -= 1.0;
-        }
-        if keyboard_state.is_scancode_pressed(Scancode::S) {
-            input.y_input += 1.0;
-        }
-
-        if keyboard_state.is_scancode_pressed(Scancode::A) {
-            input.x_input -= 1.0;
-        }
-        if keyboard_state.is_scancode_pressed(Scancode::D) {
-            input.x_input += 1.0;
-        }
-
-        self.map
-            .update(elapsed.as_secs_f32(), &self.game_state, self.my_id);
-
-        let input_message = ClientMessage::Input(input);
-        send_client_message(&input_message, &mut server_reader.stream);
-
-        StateResult::Continue
-    }
-
-    fn draw(&mut self, canvas: &mut Canvas<Window>, assets: &mut Assets) -> Result<(), String> {
-        self.map.draw(self.my_id, canvas)?;
-
-        for player in &self.game_state.players {
-            let w = 10;
-            let h = 10;
-
-            let dest_rect = sdl2::rect::Rect::new(
-                player.position.x as i32 - w as i32 / 2,
-                player.position.y as i32 - h as i32 / 2,
-                w as u32,
-                h as u32,
-            );
-            canvas.set_draw_color(sdl2::pixels::Color::RGB(255, 25, 25));
-
-            canvas.fill_rect(dest_rect)?;
-        }
-
-        Ok(())
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Semantics)]
-pub enum Semantics {
-    #[sem(name = "co", repr = "[f32; 3]", wrapper = "VertexPosition")]
-    Position,
-    #[sem(name = "color", repr = "[u8; 3]", wrapper = "VertexColor")]
-    Color,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, Vertex)]
-#[vertex(sem = "Semantics")]
-struct Vertex {
-    pos: VertexPosition,
-    #[vertex(normalized = "true")]
-    rgb: VertexColor,
-}
-
-// The vertices. We define two triangles.
-const TRI_VERTICES: [Vertex; 6] = [
-    // First triangle – an RGB one.
-    Vertex::new(
-        VertexPosition::new([0.5, -0.5, 0.]),
-        VertexColor::new([0, 255, 0]),
-    ),
-    Vertex::new(
-        VertexPosition::new([0.0, 0.5, 0.]),
-        VertexColor::new([0, 0, 255]),
-    ),
-    Vertex::new(
-        VertexPosition::new([-0.5, -0.5, 0.]),
-        VertexColor::new([255, 0, 0]),
-    ),
-    // Second triangle, a purple one, positioned differently.
-    Vertex::new(
-        VertexPosition::new([-0.5, 0.5, 0.]),
-        VertexColor::new([255, 51, 255]),
-    ),
-    Vertex::new(
-        VertexPosition::new([0.0, -0.5, 0.]),
-        VertexColor::new([51, 255, 255]),
-    ),
-    Vertex::new(
-        VertexPosition::new([0.5, 0.5, 0.]),
-        VertexColor::new([51, 51, 255]),
-    ),
-];
 
 pub fn main() -> Result<(), String> {
     let host = std::env::var("SERVER").unwrap_or(String::from("localhost:4444"));
@@ -231,19 +64,8 @@ pub fn main() -> Result<(), String> {
         panic!("Expected to get an id from server")
     };
 
-    let mut surface = surface::Sdl2Surface::build_with(|video| {
-        let mut wb = video.window(
-            "very nice gem",
-            constants::WINDOW_SIZE as u32,
-            constants::WINDOW_SIZE as u32,
-        );
-        wb.resizable();
-        wb
-    })
-    .expect("Could not create rendering surface");
-
-    let sdl = surface.sdl();
-    let video_subsystem = sdl.video().unwrap();
+    let sdl = sdl2::init().expect("Could not initialize SDL");
+    let video_subsystem = sdl.video().expect("Could not initialize SDL video");
 
     let _audio = sdl.audio().expect("Could not initialize SDL audio");
     let frequency = 44_100;
@@ -255,43 +77,11 @@ pub fn main() -> Result<(), String> {
     let _mixer_context =
         sdl2::mixer::init(sdl2::mixer::InitFlag::OGG).expect("Could not initialize SDL mixer");
 
-    // Allows 64 sounds to play simultaneously
-    sdl2::mixer::allocate_channels(64);
-
     let mut name = whoami::username();
 
     let mut event_pump = sdl.event_pump().expect("Could not get event pump");
-    let mut back_buffer = surface.back_buffer().expect("Could not get back buffer");
 
-    let mut program = {
-        let vs = include_str!("../shaders/triangle.vert");
-        let fs = include_str!("../shaders/triangle.frag");
-        let BuiltProgram { program, warnings } = surface
-            .new_shader_program::<Semantics, (), ()>()
-            .from_strings(vs, None, None, fs)
-            .expect("Failed to compile shaders");
-
-        for warning in warnings {
-            eprintln!("{}", warning);
-        }
-
-        program
-    };
-
-    // Create tessellation for direct geometry; that is, tessellation that will render vertices by
-    // taking one after another in the provided slice.
-    let direct_triangles = surface
-        .new_tess()
-        .set_vertices(&TRI_VERTICES[..])
-        .set_mode(luminance::tess::Mode::Triangle)
-        .build()
-        .unwrap();
-
-    let mut glyph_brush = {
-        let ttf = include_bytes!("../resources/yoster.ttf");
-        let font = ab_glyph::FontArc::try_from_slice(ttf).expect("Could not load font");
-        GlyphBrushBuilder::using_font(font).build(&mut surface)
-    };
+    let mut sdl = Some(sdl);
 
     'mainloop: loop {
         let menu_state = &mut MenuState::new();
@@ -299,77 +89,66 @@ pub fn main() -> Result<(), String> {
         video_subsystem.text_input().start();
         menu_state.name = name;
 
-        'menuloop: loop {
-            for event in event_pump.poll_iter() {
-                match event {
-                    Event::Quit { .. } => break 'mainloop,
-                    Event::KeyDown {
-                        keycode: Some(kc), ..
-                    } => match kc {
-                        Keycode::Return => {
-                            break 'menuloop;
-                        }
-                        Keycode::Backspace => {
-                            menu_state.name.pop();
+        {
+            let window = video_subsystem
+                .window(
+                    "very nice gem",
+                    constants::WINDOW_SIZE as u32,
+                    constants::WINDOW_SIZE as u32,
+                )
+                .resizable()
+                .build()
+                .expect("Could not create window");
+
+            let mut canvas = window
+                .into_canvas()
+                .build()
+                .expect("Could not create canvas");
+            canvas.set_blend_mode(BlendMode::Blend);
+            let texture_creator = canvas.texture_creator();
+
+            // Allows 64 sounds to play simultaneously
+            sdl2::mixer::allocate_channels(64);
+
+            let ttf_context = sdl2::ttf::init().expect("Could not initialize SDL ttf");
+
+            let mut assets = Assets::new(&texture_creator, &ttf_context);
+
+            'menuloop: loop {
+                for event in event_pump.poll_iter() {
+                    match event {
+                        Event::Quit { .. } => break 'mainloop,
+                        Event::KeyDown {
+                            keycode: Some(kc), ..
+                        } => match kc {
+                            Keycode::Return => {
+                                break 'menuloop;
+                            }
+                            Keycode::Backspace => {
+                                menu_state.name.pop();
+                            }
+                            _ => {}
+                        },
+                        Event::TextInput { text, .. } => {
+                            if menu_state.name.chars().count() < 20 {
+                                menu_state.name += &text;
+                            }
                         }
                         _ => {}
-                    },
-                    Event::TextInput { text, .. } => {
-                        if menu_state.name.chars().count() < 20 {
-                            menu_state.name += &text;
-                        }
                     }
-                    Event::Window { win_event: WindowEvent::SizeChanged(..), .. } => {
-                        back_buffer = surface.back_buffer().expect("Could not get back buffer");
-                    }
-                    _ => {}
                 }
+                rendering::setup_coordinates(&mut canvas)?;
+
+                // Ignore all messages so we don't freeze the server
+                reader.fetch_bytes().unwrap();
+                for _ in reader.iter() {}
+
+                menu_state.update();
+
+                menu_state.draw(&mut canvas, &assets).unwrap();
             }
-            // rendering::setup_coordinates(&mut canvas)?;
-
-            glyph_brush.queue(
-                Section::default()
-                    .with_screen_position(Vec2::new(100., 100.))
-                    .add_text(
-                        Text::new("Enter your name:\n")
-                            .with_color([0.9, 0.9, 0.9, 0.9])
-                            .with_scale(50.0),
-                    )
-                    .add_text(
-                        Text::new(&menu_state.name)
-                            .with_color([1.0, 1.0, 1.0, 1.0])
-                            .with_scale(50.0),
-                    ),
-            );
-
-            glyph_brush.process_queued(&mut surface);
-
-            // Create a new dynamic pipeline that will render to the back buffer and must clear it
-            // with pitch black prior to do any render to it.
-            surface
-                .new_pipeline_gate()
-                .pipeline(
-                    &back_buffer,
-                    &PipelineState::default(),
-                    |mut pipeline, mut shd_gate| {
-                        // Draw text.
-                        glyph_brush.draw_queued(&mut pipeline, &mut shd_gate, 1024, 720)?;
-
-                        Ok(())
-                    },
-                )
-                .assume()
-                .into_result()
-                .expect("Failed to render");
-
-            surface.window().gl_swap_window();
-
-            // Ignore all messages so we don't freeze the server
-            reader.fetch_bytes().unwrap();
-            for _ in reader.iter() {}
-
-            menu_state.update();
         }
+
         video_subsystem.text_input().stop();
 
         name = menu_state.name.clone();
@@ -381,45 +160,13 @@ pub fn main() -> Result<(), String> {
             &mut reader.stream,
         );
 
-        let main_state = &mut MainState::new(my_id);
-        'gameloop: loop {
-            for event in event_pump.poll_iter() {
-                match event {
-                    Event::Quit { .. } => break 'mainloop,
-                    _ => {}
-                }
-            }
+        let (result, returned_sdl) = agent::gameloop(sdl.take().unwrap(), &mut event_pump, my_id);
+        sdl = Some(returned_sdl);
 
-            glyph_brush.process_queued(&mut surface);
-
-            // Create a new dynamic pipeline that will render to the back buffer and must clear it
-            // with pitch black prior to do any render to it.
-            surface
-                .new_pipeline_gate()
-                .pipeline(
-                    &back_buffer,
-                    &PipelineState::default(),
-                    |mut pipeline, mut shd_gate| {
-                        // Draw text.
-                        glyph_brush.draw_queued(&mut pipeline, &mut shd_gate, 1024, 720)?;
-
-                        // Start shading with our program.
-                        shd_gate.shade(&mut program, |_, _, mut rdr_gate| {
-                            // Start rendering things with the default render state provided by
-                            // luminance.
-                            rdr_gate.render(&RenderState::default(), |mut tess_gate| {
-                                tess_gate.render(&direct_triangles)
-                            })
-                        })?;
-
-                        Ok(())
-                    },
-                )
-                .assume()
-                .into_result()
-                .expect("Failed to render");
-
-            surface.window().gl_swap_window();
+        match result {
+            StateResult::Quit => break 'mainloop,
+            StateResult::Continue => continue,
+            StateResult::GotoNext => (),
         }
     }
 
