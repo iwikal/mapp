@@ -94,10 +94,11 @@ pub fn main() -> Result<(), String> {
         let sounds = {
             let window = video_subsystem
                 .window(
-                    "very nice gem",
+                    "MAPP",
                     constants::WINDOW_SIZE as u32,
                     constants::WINDOW_SIZE as u32,
                 )
+                .fullscreen_desktop()
                 .resizable()
                 .build()
                 .expect("Could not create window");
@@ -166,19 +167,21 @@ pub fn main() -> Result<(), String> {
 
         name = menu_state.name.clone();
 
-        let (result, returned_sdl) = agent::gameloop(
-            sdl.take().unwrap(),
-            &mut event_pump,
-            &mut reader,
-            &sounds,
-            my_id,
-        );
-        sdl = Some(returned_sdl);
+        {
+            let (result, returned_sdl) = agent::gameloop(
+                sdl.take().unwrap(),
+                &mut event_pump,
+                &mut reader,
+                &sounds,
+                my_id,
+            );
+            sdl = Some(returned_sdl);
 
-        match result {
-            StateResult::Quit => break 'mainloop,
-            StateResult::Continue => continue,
-            StateResult::GotoNext => (),
+            match result {
+                StateResult::Quit => break 'mainloop,
+                StateResult::Continue => continue,
+                StateResult::GotoNext => (),
+            }
         }
     }
 
