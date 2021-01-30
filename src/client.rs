@@ -8,7 +8,7 @@ use std::io::prelude::*;
 use std::net::TcpStream;
 use std::time::Instant;
 
-use sdl2::event::Event;
+use sdl2::event::{Event, WindowEvent};
 use sdl2::keyboard::{Keycode, Scancode};
 use sdl2::render::BlendMode;
 use sdl2::render::Canvas;
@@ -20,6 +20,10 @@ use luminance::shader::BuiltProgram;
 use luminance::render_state::RenderState;
 
 use luminance_derive::{Vertex, Semantics};
+
+use luminance_glyph::{GlyphBrushBuilder, Section, Text};
+
+use ultraviolet::{Vec4, Mat4};
 
 use assets::Assets;
 use libplen::constants;
@@ -150,7 +154,7 @@ impl MainState {
             );
             canvas.set_draw_color(sdl2::pixels::Color::RGB(255, 25, 25));
 
-            canvas.fill_rect(dest_rect);
+            canvas.fill_rect(dest_rect)?;
         }
 
         Ok(())
@@ -159,7 +163,7 @@ impl MainState {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Semantics)]
 pub enum Semantics {
-    #[sem(name = "co", repr = "[f32; 2]", wrapper = "VertexPosition")]
+    #[sem(name = "co", repr = "[f32; 3]", wrapper = "VertexPosition")]
     Position,
     #[sem(name = "color", repr = "[u8; 3]", wrapper = "VertexColor")]
     Color,
@@ -178,28 +182,28 @@ struct Vertex {
 const TRI_VERTICES: [Vertex; 6] = [
     // First triangle – an RGB one.
     Vertex::new(
-        VertexPosition::new([0.5, -0.5]),
+        VertexPosition::new([0.5, -0.5, 0.]),
         VertexColor::new([0, 255, 0]),
     ),
     Vertex::new(
-        VertexPosition::new([0.0, 0.5]),
+        VertexPosition::new([0.0, 0.5, 0.]),
         VertexColor::new([0, 0, 255]),
     ),
     Vertex::new(
-        VertexPosition::new([-0.5, -0.5]),
+        VertexPosition::new([-0.5, -0.5, 0.]),
         VertexColor::new([255, 0, 0]),
     ),
     // Second triangle, a purple one, positioned differently.
     Vertex::new(
-        VertexPosition::new([-0.5, 0.5]),
+        VertexPosition::new([-0.5, 0.5, 0.]),
         VertexColor::new([255, 51, 255]),
     ),
     Vertex::new(
-        VertexPosition::new([0.0, -0.5]),
+        VertexPosition::new([0.0, -0.5, 0.]),
         VertexColor::new([51, 255, 255]),
     ),
     Vertex::new(
-        VertexPosition::new([0.5, 0.5]),
+        VertexPosition::new([0.5, 0.5, 0.]),
         VertexColor::new([51, 51, 255]),
     ),
 ];
@@ -255,10 +259,6 @@ pub fn main() -> Result<(), String> {
     // Allows 64 sounds to play simultaneously
     sdl2::mixer::allocate_channels(64);
 
-    let ttf_context = sdl2::ttf::init().expect("Could not initialize SDL ttf");
-
-    // let mut assets = Assets::new(&texture_creator, &ttf_context);
-
     let mut name = whoami::username();
 
     let mut event_pump = sdl.event_pump().expect("Could not get event pump");
@@ -279,7 +279,6 @@ pub fn main() -> Result<(), String> {
         program
     };
 
-
     // Create tessellation for direct geometry; that is, tessellation that will render vertices by
     // taking one after another in the provided slice.
     let direct_triangles = surface
@@ -288,6 +287,22 @@ pub fn main() -> Result<(), String> {
         .set_mode(luminance::tess::Mode::Triangle)
         .build()
         .unwrap();
+
+    let mut glyph_brush = {
+        let ttf = include_bytes!("../resources/yoster.ttf");
+        let font = ab_glyph::FontArc::try_from_slice(ttf).expect("Could not load font");
+        GlyphBrushBuilder::using_font(font).build(&mut surface)
+    };
+
+    glyph_brush.queue(
+        Section::default().add_text(
+            Text::new("Font test")
+            .with_color([1.0, 1.0, 1.0, 1.0])
+            .with_scale(80.0),
+        ),
+    );
+
+    glyph_brush.process_queued(&mut surface);
 
     'mainloop: loop {
         let menu_state = &mut MenuState::new();
@@ -315,11 +330,13 @@ pub fn main() -> Result<(), String> {
                             menu_state.name += &text;
                         }
                     }
+                    Event::Window { win_event: WindowEvent::SizeChanged(..), .. } => {
+                        back_buffer = surface.back_buffer().expect("Could not get back buffer");
+                    }
                     _ => {}
                 }
             }
             // rendering::setup_coordinates(&mut canvas)?;
-
 
             // Create a new dynamic pipeline that will render to the back buffer and must clear it
             // with pitch black prior to do any render to it.
@@ -328,7 +345,7 @@ pub fn main() -> Result<(), String> {
                 .pipeline(
                     &back_buffer,
                     &PipelineState::default(),
-                    |_, mut shd_gate| {
+                    |mut pipeline, mut shd_gate| {
                         // Start shading with our program.
                         shd_gate.shade(&mut program, |_, _, mut rdr_gate| {
                             // Start rendering things with the default render state provided by
@@ -338,7 +355,10 @@ pub fn main() -> Result<(), String> {
                                 // and render it to the surface.
                                 tess_gate.render(&direct_triangles)
                             })
-                        })
+                        })?;
+
+                        glyph_brush.draw_queued(&mut pipeline, &mut shd_gate, 1024, 720)?;
+                        Ok(())
                     },
                 )
                 .assume();
@@ -350,8 +370,6 @@ pub fn main() -> Result<(), String> {
             for _ in reader.iter() {}
 
             menu_state.update();
-
-            // menu_state.draw(&mut canvas, &assets).unwrap();
         }
         video_subsystem.text_input().stop();
 
