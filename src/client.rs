@@ -2,6 +2,7 @@ mod assets;
 mod map;
 mod menu;
 mod rendering;
+mod surface;
 
 use std::io::prelude::*;
 use std::net::TcpStream;
@@ -12,6 +13,9 @@ use sdl2::keyboard::{Keycode, Scancode};
 use sdl2::render::BlendMode;
 use sdl2::render::Canvas;
 use sdl2::video::Window;
+
+use luminance::context::GraphicsContext as _;
+use luminance::pipeline::PipelineState;
 
 use assets::Assets;
 use libplen::constants;
@@ -173,25 +177,19 @@ pub fn main() -> Result<(), String> {
         panic!("Expected to get an id from server")
     };
 
-    let sdl = sdl2::init().expect("Could not initialize SDL");
-    let video_subsystem = sdl.video().expect("Could not initialize SDL video");
-
-    let window = video_subsystem
-        .window(
+    let mut surface = surface::Sdl2Surface::build_with(|video| {
+        let mut wb = video.window(
             "very nice gem",
             constants::WINDOW_SIZE as u32,
             constants::WINDOW_SIZE as u32,
-        )
-        .resizable()
-        .build()
-        .expect("Could not create window");
+        );
+        wb.resizable();
+        wb
+    })
+    .expect("Could not create rendering surface");
 
-    let mut canvas = window
-        .into_canvas()
-        .build()
-        .expect("Could not create canvas");
-    canvas.set_blend_mode(BlendMode::Blend);
-    let texture_creator = canvas.texture_creator();
+    let sdl = surface.sdl();
+    let video_subsystem = sdl.video().unwrap();
 
     let _audio = sdl.audio().expect("Could not initialize SDL audio");
     let frequency = 44_100;
@@ -208,11 +206,12 @@ pub fn main() -> Result<(), String> {
 
     let ttf_context = sdl2::ttf::init().expect("Could not initialize SDL ttf");
 
-    let mut assets = Assets::new(&texture_creator, &ttf_context);
+    // let mut assets = Assets::new(&texture_creator, &ttf_context);
 
     let mut name = whoami::username();
 
     let mut event_pump = sdl.event_pump().expect("Could not get event pump");
+    let mut back_buffer = surface.back_buffer().expect("Could not get back buffer");
 
     'mainloop: loop {
         let menu_state = &mut MenuState::new();
@@ -243,7 +242,34 @@ pub fn main() -> Result<(), String> {
                     _ => {}
                 }
             }
-            rendering::setup_coordinates(&mut canvas)?;
+            // rendering::setup_coordinates(&mut canvas)?;
+
+
+            // Create a new dynamic pipeline that will render to the back buffer and must clear it
+            // with pitch black prior to do any render to it.
+            let render = surface
+                .new_pipeline_gate()
+                .pipeline(
+                    &back_buffer,
+                    &PipelineState::default(),
+                    |_, mut shd_gate| {
+                        // Start shading with our program.
+                        /*
+                           shd_gate.shade(&mut program, |_, _, mut rdr_gate| {
+                        // Start rendering things with the default render state provided by luminance.
+                        rdr_gate.render(&RenderState::default(), |mut tess_gate| {
+                        // Pick the right tessellation to use depending on the mode chosen and render
+                        // it to the surface.
+                        tess_gate.render(&direct_triangles)
+                        })
+                        })
+                        */
+                        Ok(())
+                    },
+                )
+                .assume();
+
+            surface.window().gl_swap_window();
 
             // Ignore all messages so we don't freeze the server
             reader.fetch_bytes().unwrap();
@@ -251,7 +277,7 @@ pub fn main() -> Result<(), String> {
 
             menu_state.update();
 
-            menu_state.draw(&mut canvas, &assets).unwrap();
+            // menu_state.draw(&mut canvas, &assets).unwrap();
         }
         video_subsystem.text_input().stop();
 
@@ -272,6 +298,8 @@ pub fn main() -> Result<(), String> {
                     _ => {}
                 }
             }
+
+            /*
             rendering::setup_coordinates(&mut canvas)?;
 
             canvas.set_draw_color(sdl2::pixels::Color::RGB(25, 25, 25));
@@ -283,9 +311,11 @@ pub fn main() -> Result<(), String> {
 
             canvas.present();
 
+
             if state_result == StateResult::GotoNext {
                 break 'gameloop;
             }
+            */
         }
     }
 
