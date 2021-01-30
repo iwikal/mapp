@@ -16,6 +16,10 @@ use sdl2::video::Window;
 
 use luminance::context::GraphicsContext as _;
 use luminance::pipeline::PipelineState;
+use luminance::shader::BuiltProgram;
+use luminance::render_state::RenderState;
+
+use luminance_derive::{Vertex, Semantics};
 
 use assets::Assets;
 use libplen::constants;
@@ -153,6 +157,53 @@ impl MainState {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Semantics)]
+pub enum Semantics {
+    #[sem(name = "co", repr = "[f32; 2]", wrapper = "VertexPosition")]
+    Position,
+    #[sem(name = "color", repr = "[u8; 3]", wrapper = "VertexColor")]
+    Color,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Vertex)]
+#[vertex(sem = "Semantics")]
+struct Vertex {
+    pos: VertexPosition,
+    #[vertex(normalized = "true")]
+    rgb: VertexColor,
+}
+
+// The vertices. We define two triangles.
+const TRI_VERTICES: [Vertex; 6] = [
+    // First triangle – an RGB one.
+    Vertex::new(
+        VertexPosition::new([0.5, -0.5]),
+        VertexColor::new([0, 255, 0]),
+    ),
+    Vertex::new(
+        VertexPosition::new([0.0, 0.5]),
+        VertexColor::new([0, 0, 255]),
+    ),
+    Vertex::new(
+        VertexPosition::new([-0.5, -0.5]),
+        VertexColor::new([255, 0, 0]),
+    ),
+    // Second triangle, a purple one, positioned differently.
+    Vertex::new(
+        VertexPosition::new([-0.5, 0.5]),
+        VertexColor::new([255, 51, 255]),
+    ),
+    Vertex::new(
+        VertexPosition::new([0.0, -0.5]),
+        VertexColor::new([51, 255, 255]),
+    ),
+    Vertex::new(
+        VertexPosition::new([0.5, 0.5]),
+        VertexColor::new([51, 51, 255]),
+    ),
+];
+
 pub fn main() -> Result<(), String> {
     let host = std::env::var("SERVER").unwrap_or(String::from("localhost:4444"));
     let stream = TcpStream::connect(host).expect("Could not connect to server");
@@ -213,6 +264,31 @@ pub fn main() -> Result<(), String> {
     let mut event_pump = sdl.event_pump().expect("Could not get event pump");
     let mut back_buffer = surface.back_buffer().expect("Could not get back buffer");
 
+    let mut program = {
+        let vs = include_str!("../shaders/triangle.vert");
+        let fs = include_str!("../shaders/triangle.frag");
+        let BuiltProgram { program, warnings } = surface
+            .new_shader_program::<Semantics, (), ()>()
+            .from_strings(vs, None, None, fs)
+            .expect("Failed to compile shaders");
+
+        for warning in warnings {
+            eprintln!("{}", warning);
+        }
+
+        program
+    };
+
+
+    // Create tessellation for direct geometry; that is, tessellation that will render vertices by
+    // taking one after another in the provided slice.
+    let direct_triangles = surface
+        .new_tess()
+        .set_vertices(&TRI_VERTICES[..])
+        .set_mode(luminance::tess::Mode::Triangle)
+        .build()
+        .unwrap();
+
     'mainloop: loop {
         let menu_state = &mut MenuState::new();
 
@@ -254,17 +330,15 @@ pub fn main() -> Result<(), String> {
                     &PipelineState::default(),
                     |_, mut shd_gate| {
                         // Start shading with our program.
-                        /*
-                           shd_gate.shade(&mut program, |_, _, mut rdr_gate| {
-                        // Start rendering things with the default render state provided by luminance.
-                        rdr_gate.render(&RenderState::default(), |mut tess_gate| {
-                        // Pick the right tessellation to use depending on the mode chosen and render
-                        // it to the surface.
-                        tess_gate.render(&direct_triangles)
+                        shd_gate.shade(&mut program, |_, _, mut rdr_gate| {
+                            // Start rendering things with the default render state provided by
+                            // luminance.
+                            rdr_gate.render(&RenderState::default(), |mut tess_gate| {
+                                // Pick the right tessellation to use depending on the mode chosen
+                                // and render it to the surface.
+                                tess_gate.render(&direct_triangles)
+                            })
                         })
-                        })
-                        */
-                        Ok(())
                     },
                 )
                 .assume();

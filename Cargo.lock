@@ -227,6 +227,7 @@ dependencies = [
  "gl",
  "libplen",
  "luminance",
+ "luminance-derive",
  "luminance-gl",
  "rand",
  "rand_derive",
