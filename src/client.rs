@@ -1,9 +1,9 @@
+mod agent;
 mod assets;
 mod map;
 mod menu;
 mod rendering;
 mod surface;
-mod agent;
 
 use std::io::prelude::*;
 use std::net::TcpStream;
@@ -38,122 +38,7 @@ pub fn send_client_message(msg: &ClientMessage, stream: &mut TcpStream) {
 pub enum StateResult {
     Continue,
     GotoNext,
-// <<<<<<< HEAD
-// }
-// 
-// struct MainState {
-//     my_id: u64,
-//     game_state: gamestate::GameState,
-//     map: map::Map,
-//     last_time: Instant,
-// }
-// 
-// impl MainState {
-//     fn new(my_id: u64) -> MainState {
-//         MainState {
-//             my_id,
-//             game_state: gamestate::GameState::new(),
-//             map: map::Map::new(),
-//             last_time: Instant::now(),
-//         }
-//     }
-// 
-//     fn update(
-//         &mut self,
-//         assets: &Assets,
-//         server_reader: &mut MessageReader,
-//         keyboard_state: &sdl2::keyboard::KeyboardState,
-//     ) -> StateResult {
-//         let elapsed = self.last_time.elapsed();
-//         self.last_time = Instant::now();
-//         let dt_duration = std::time::Duration::from_millis(1000 / 60);
-//         if elapsed < dt_duration {
-//             std::thread::sleep(dt_duration - elapsed);
-//         }
-// 
-//         server_reader.fetch_bytes().unwrap();
-// 
-//         for message in server_reader.iter() {
-//             match bincode::deserialize(&message).unwrap() {
-//                 ServerMessage::AssignId(_) => {
-//                     panic!("Got new ID after intialisation")
-//                 }
-//                 ServerMessage::GameState(state) => self.game_state = state,
-//                 ServerMessage::PlaySound(sound, pos) => {
-//                     fn play_sound(soundeffect: &sdl2::mixer::Chunk) {
-//                         if let Err(e) = sdl2::mixer::Channel::all().play(soundeffect, 0) {
-//                             println!("SDL mixer error: {}", e);
-//                         }
-//                     }
-// 
-//                     match sound {
-//                         SoundEffect::Powerup => {
-//                             play_sound(&assets.powerup);
-//                         }
-//                         SoundEffect::Gun => {
-//                             play_sound(&assets.gun);
-//                         }
-//                         SoundEffect::Explosion => {
-//                             play_sound(&assets.explosion);
-//                         }
-//                         SoundEffect::LaserCharge => {
-//                             play_sound(&assets.laser_charge_sound);
-//                         }
-//                         SoundEffect::LaserFire => {
-//                             play_sound(&assets.laser_fire_sound);
-//                         }
-//                     }
-//                 }
-//             }
-//         }
-// 
-//         let mut input = ClientInput::new();
-//         if keyboard_state.is_scancode_pressed(Scancode::W) {
-//             input.y_input -= 1.0;
-//         }
-//         if keyboard_state.is_scancode_pressed(Scancode::S) {
-//             input.y_input += 1.0;
-//         }
-// 
-//         if keyboard_state.is_scancode_pressed(Scancode::A) {
-//             input.x_input -= 1.0;
-//         }
-//         if keyboard_state.is_scancode_pressed(Scancode::D) {
-//             input.x_input += 1.0;
-//         }
-// 
-//         self.map
-//             .update(elapsed.as_secs_f32(), &self.game_state, self.my_id);
-// 
-//         let input_message = ClientMessage::Input(input);
-//         send_client_message(&input_message, &mut server_reader.stream);
-// 
-//         StateResult::Continue
-//     }
-// 
-//     fn draw(&mut self, canvas: &mut Canvas<Window>, assets: &mut Assets) -> Result<(), String> {
-//         self.map.draw(self.my_id, canvas)?;
-// 
-//         // for player in &self.game_state.players {
-//         //     let w = 10;
-//         //     let h = 10;
-// 
-//         //     let dest_rect = sdl2::rect::Rect::new(
-//         //         player.position.x as i32 - w as i32 / 2,
-//         //         player.position.y as i32 - h as i32 / 2,
-//         //         w as u32,
-//         //         h as u32,
-//         //     );
-//         //     canvas.set_draw_color(sdl2::pixels::Color::RGB(255, 25, 25));
-// 
-//         //     canvas.fill_rect(dest_rect);
-//         // }
-// 
-//         Ok(())
-//     }
-// =======
     Quit,
-// >>>>>>> c164495aa2f4562c5fc18eb5dcf22a46971776c1
 }
 
 pub fn main() -> Result<(), String> {
@@ -205,23 +90,7 @@ pub fn main() -> Result<(), String> {
         video_subsystem.text_input().start();
         menu_state.name = name;
 
-// <<<<<<< HEAD
-//         'menuloop: loop {
-//             let mut current_mouse_click: Option<(i32, i32)> = None;
-// 
-//             for event in event_pump.poll_iter() {
-//                 match event {
-//                     Event::Quit { .. } => break 'mainloop,
-//                     Event::KeyDown {
-//                         keycode: Some(kc), ..
-//                     } => match kc {
-//                         Keycode::Return => {
-//                             break 'menuloop;
-//                         }
-//                         Keycode::Backspace => {
-//                             menu_state.name.pop();
-// =======
-        {
+        let sounds = {
             let window = video_subsystem
                 .window(
                     "very nice gem",
@@ -288,20 +157,21 @@ pub fn main() -> Result<(), String> {
 
                 menu_state.draw(&mut canvas, &assets).unwrap();
             }
-        }
+
+            assets.sounds
+        };
 
         video_subsystem.text_input().stop();
 
         name = menu_state.name.clone();
 
-        // send_client_message(
-        //     &ClientMessage::JoinGame {
-        //         name: menu_state.name.clone(),
-        //     },
-        //     &mut reader.stream,
-        // );
-
-        let (result, returned_sdl) = agent::gameloop(sdl.take().unwrap(), &mut event_pump, my_id);
+        let (result, returned_sdl) = agent::gameloop(
+            sdl.take().unwrap(),
+            &mut event_pump,
+            &mut reader,
+            &sounds,
+            my_id,
+        );
         sdl = Some(returned_sdl);
 
         match result {

@@ -1,21 +1,23 @@
+mod sprite;
+
 use std::time::Instant;
 
-use sdl2::EventPump;
 use sdl2::event::{Event, WindowEvent};
-use sdl2::keyboard::{Keycode, Scancode};
+use sdl2::keyboard::Scancode;
+use sdl2::EventPump;
 
 use luminance::context::GraphicsContext as _;
 use luminance::pipeline::PipelineState;
-use luminance::shader::BuiltProgram;
 use luminance::render_state::RenderState;
-use luminance_derive::{Vertex, Semantics};
+use luminance::shader::BuiltProgram;
+use luminance_derive::{Semantics, Vertex};
 use luminance_glyph::{GlyphBrushBuilder, Section, Text};
 
-use ultraviolet::{Vec4, Mat4, Vec2};
+use ultraviolet::Mat4;
 
 use libplen::messages::{ClientInput, ClientMessage, MessageReader, ServerMessage, SoundEffect};
 
-use crate::{gamestate, map, assets::Assets, constants, surface, StateResult};
+use crate::{assets::SoundAssets, constants, gamestate, map, surface, StateResult};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Semantics)]
 pub enum Semantics {
@@ -33,36 +35,6 @@ struct Vertex {
     #[vertex(normalized = "true")]
     rgb: VertexColor,
 }
-
-// The vertices. We define two triangles.
-const TRI_VERTICES: [Vertex; 6] = [
-    // First triangle – an RGB one.
-    Vertex::new(
-        VertexPosition::new([0.5, -0.5, 0.]),
-        VertexColor::new([0, 255, 0]),
-    ),
-    Vertex::new(
-        VertexPosition::new([0.0, 0.5, 0.]),
-        VertexColor::new([0, 0, 255]),
-    ),
-    Vertex::new(
-        VertexPosition::new([-0.5, -0.5, 0.]),
-        VertexColor::new([255, 0, 0]),
-    ),
-    // Second triangle, a purple one, positioned differently.
-    Vertex::new(
-        VertexPosition::new([-0.5, 0.5, 0.]),
-        VertexColor::new([255, 51, 255]),
-    ),
-    Vertex::new(
-        VertexPosition::new([0.0, -0.5, 0.]),
-        VertexColor::new([51, 255, 255]),
-    ),
-    Vertex::new(
-        VertexPosition::new([0.5, 0.5, 0.]),
-        VertexColor::new([51, 51, 255]),
-    ),
-];
 
 struct AgentState {
     my_id: u64,
@@ -83,7 +55,7 @@ impl AgentState {
 
     fn update(
         &mut self,
-        assets: &Assets,
+        sounds: &SoundAssets,
         server_reader: &mut MessageReader,
         keyboard_state: &sdl2::keyboard::KeyboardState,
     ) -> StateResult {
@@ -110,21 +82,11 @@ impl AgentState {
                     }
 
                     match sound {
-                        SoundEffect::Powerup => {
-                            play_sound(&assets.powerup);
-                        }
-                        SoundEffect::Gun => {
-                            play_sound(&assets.gun);
-                        }
-                        SoundEffect::Explosion => {
-                            play_sound(&assets.explosion);
-                        }
-                        SoundEffect::LaserCharge => {
-                            play_sound(&assets.laser_charge_sound);
-                        }
-                        SoundEffect::LaserFire => {
-                            play_sound(&assets.laser_fire_sound);
-                        }
+                        SoundEffect::Powerup => play_sound(&sounds.powerup),
+                        SoundEffect::Gun => play_sound(&sounds.gun),
+                        SoundEffect::Explosion => play_sound(&sounds.explosion),
+                        SoundEffect::LaserCharge => play_sound(&sounds.laser_charge_sound),
+                        SoundEffect::LaserFire => play_sound(&sounds.laser_fire_sound),
                     }
                 }
             }
@@ -158,6 +120,8 @@ impl AgentState {
 pub fn gameloop(
     sdl: sdl2::Sdl,
     event_pump: &mut EventPump,
+    server_reader: &mut MessageReader,
+    sounds: &SoundAssets,
     my_id: u64,
 ) -> (StateResult, sdl2::Sdl) {
     let mut surface = surface::Sdl2Surface::build_with(sdl, |video| {
@@ -171,15 +135,13 @@ pub fn gameloop(
     })
     .expect("Could not create rendering surface");
 
-    let sdl = surface.sdl();
-
     let mut back_buffer = surface.back_buffer().expect("Could not get back buffer");
 
-    let mut program = {
-        let vs = include_str!("../shaders/triangle.vert");
-        let fs = include_str!("../shaders/triangle.frag");
+    let mut sprite_program = {
+        let vs = include_str!("../shaders/quad.vert");
+        let fs = include_str!("../shaders/quad.frag");
         let BuiltProgram { program, warnings } = surface
-            .new_shader_program::<Semantics, (), ()>()
+            .new_shader_program::<(), (), sprite::SpriteInterface>()
             .from_strings(vs, None, None, fs)
             .expect("Failed to compile shaders");
 
@@ -190,12 +152,10 @@ pub fn gameloop(
         program
     };
 
-    // Create tessellation for direct geometry; that is, tessellation that will render vertices by
-    // taking one after another in the provided slice.
-    let direct_triangles = surface
+    let quad_tess = surface
         .new_tess()
-        .set_vertices(&TRI_VERTICES[..])
-        .set_mode(luminance::tess::Mode::Triangle)
+        .set_vertex_nb(4)
+        .set_mode(luminance::tess::Mode::TriangleFan)
         .build()
         .unwrap();
 
@@ -207,21 +167,44 @@ pub fn gameloop(
 
     let agent_state = &mut AgentState::new(my_id);
 
+    let (width, height) = surface.window().size();
+
+    fn make_projection_matrix(width: f32, height: f32) -> Mat4 {
+        let fov = 90_f32.to_radians();
+        let aspect_ratio = width / height;
+        ultraviolet::projection::perspective_gl(fov, aspect_ratio, 0.01, 100.0)
+    }
+
+    let mut projection = make_projection_matrix(width as _, height as _);
+    let mut resize = false;
+
+    let mut flower_sprite = sprite::load_sprite(&mut surface, "resources/flower.png");
+
     loop {
         for event in event_pump.poll_iter() {
             match event {
-                Event::Window { win_event: WindowEvent::Close, .. } |
-                Event::Quit { .. } => {
+                Event::Window {
+                    win_event: WindowEvent::Close,
+                    ..
+                }
+                | Event::Quit { .. } => {
                     let (sdl, ..) = surface.into_parts();
                     return (StateResult::Quit, sdl);
                 }
-                Event::Window { win_event: WindowEvent::SizeChanged(..), .. } => {
-                    back_buffer = surface.back_buffer().unwrap();
-                }
+                Event::Window {
+                    win_event: WindowEvent::SizeChanged(..),
+                    ..
+                } => resize = true,
                 _ => {}
             }
         }
 
+        if resize {
+            back_buffer = surface.back_buffer().unwrap();
+            resize = false;
+        }
+
+        agent_state.update(sounds, server_reader, &event_pump.keyboard_state());
         glyph_brush.process_queued(&mut surface);
 
         // Create a new dynamic pipeline that will render to the back buffer and must clear it
@@ -235,12 +218,16 @@ pub fn gameloop(
                     // Draw text.
                     glyph_brush.draw_queued(&mut pipeline, &mut shd_gate, 1024, 720)?;
 
+                    let bound_tex = pipeline.bind_texture(&mut flower_sprite)?;
+
                     // Start shading with our program.
-                    shd_gate.shade(&mut program, |_, _, mut rdr_gate| {
+                    shd_gate.shade(&mut sprite_program, |mut iface, uni, mut rdr_gate| {
+                        iface.set(&uni.tex, bound_tex.binding());
+
                         // Start rendering things with the default render state provided by
                         // luminance.
                         rdr_gate.render(&RenderState::default(), |mut tess_gate| {
-                            tess_gate.render(&direct_triangles)
+                            tess_gate.render(&quad_tess)
                         })
                     })?;
 

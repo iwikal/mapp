@@ -1,17 +1,17 @@
-use enum_map::{enum_map, EnumMap};
 use sdl2::image::LoadTexture;
 use sdl2::mixer::Chunk;
 use sdl2::render::{Texture, TextureCreator};
 use sdl2::video::WindowContext;
-
-use libplen::constants;
 
 pub struct Assets<'ttf, 'r> {
     pub font: sdl2::ttf::Font<'ttf, 'r>,
 
     pub menu_background: Texture<'r>,
     pub end_background: Texture<'r>,
+    pub sounds: SoundAssets,
+}
 
+pub struct SoundAssets {
     pub achtung_blitzkrieg_engine: Chunk,
     pub el_pollo_romero_engine: Chunk,
     pub howdy_cowboy_engine: Chunk,
@@ -36,13 +36,7 @@ impl<'ttf, 'r> Assets<'ttf, 'r> {
             tex
         };
 
-        let mut assets = Assets {
-            font: ttf_context
-                .load_font("resources/yoster.ttf", 15)
-                .expect("Could not find font!"),
-            menu_background: load_tex("resources/menu_background.png"),
-            end_background: load_tex("resources/endscreen.png"),
-
+        let mut sounds = SoundAssets {
             achtung_blitzkrieg_engine: Chunk::from_file(
                 "resources/audio/achtungblitzkrieg-engine.ogg",
             )
@@ -60,11 +54,18 @@ impl<'ttf, 'r> Assets<'ttf, 'r> {
         };
 
         // Volume is on a scale from 0 to 128
-        assets.achtung_blitzkrieg_engine.set_volume(30);
-        assets.el_pollo_romero_engine.set_volume(30);
-        assets.howdy_cowboy_engine.set_volume(30);
-        assets.suka_blyat_engine.set_volume(30);
+        sounds.achtung_blitzkrieg_engine.set_volume(30);
+        sounds.el_pollo_romero_engine.set_volume(30);
+        sounds.howdy_cowboy_engine.set_volume(30);
+        sounds.suka_blyat_engine.set_volume(30);
 
-        assets
+        Assets {
+            font: ttf_context
+                .load_font("resources/yoster.ttf", 15)
+                .expect("Could not find font!"),
+            menu_background: load_tex("resources/menu_background.png"),
+            end_background: load_tex("resources/endscreen.png"),
+            sounds,
+        }
     }
 }
