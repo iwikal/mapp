@@ -133,10 +133,11 @@ pub fn gameloop(
 ) -> (StateResult, sdl2::Sdl) {
     let mut surface = surface::Sdl2Surface::build_with(sdl, |video| {
         let mut wb = video.window(
-            "very nice gem",
+            "MAPP",
             constants::WINDOW_SIZE as u32,
             constants::WINDOW_SIZE as u32,
         );
+        wb.fullscreen_desktop();
         wb.resizable();
         wb
     })
