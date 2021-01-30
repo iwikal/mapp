@@ -88,12 +88,10 @@ impl Sdl2Surface {
     /// })
     ///   .expect("failed to build window");
     /// ```
-    pub fn build_with<WB>(window_builder: WB) -> Result<Self, Sdl2SurfaceError>
+    pub fn build_with<WB>(sdl: sdl2::Sdl, window_builder: WB) -> Result<Self, Sdl2SurfaceError>
     where
         WB: FnOnce(&sdl2::VideoSubsystem) -> sdl2::video::WindowBuilder,
     {
-        let sdl = sdl2::init().map_err(Sdl2SurfaceError::InitError)?;
-
         let video_system = sdl.video().map_err(Sdl2SurfaceError::VideoInitError)?;
 
         let gl_attr = video_system.gl_attr();
@@ -130,12 +128,12 @@ impl Sdl2Surface {
         &self.sdl
     }
 
-    /// The underlying SDL2 window of this surface.
+    /// Borrow the underlying SDL2 window of this surface.
     pub fn window(&self) -> &sdl2::video::Window {
         &self.window
     }
 
-    /// The underlying SDL2 window of this surface.
+    /// Mutably borrow the underlying SDL2 window of this surface.
     pub fn window_mut(&mut self) -> &mut sdl2::video::Window {
         &mut self.window
     }
@@ -144,6 +142,10 @@ impl Sdl2Surface {
     pub fn back_buffer(&mut self) -> Result<Framebuffer<GL33, Dim2, (), ()>, FramebufferError> {
         let (w, h) = self.window.drawable_size();
         Framebuffer::back_buffer(self, [w, h])
+    }
+
+    pub fn into_parts(self) -> (sdl2::Sdl, sdl2::video::Window, GL33) {
+        (self.sdl, self.window, self.gl)
     }
 }
 
