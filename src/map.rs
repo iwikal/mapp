@@ -26,13 +26,11 @@ impl Map {
         let map_width = ROOM_WIDTH * 8. + DOORWAY_LENGTH * 7. + SCREEN_PADDING * 2.;
         let scale = screen_w as f32 / map_width;
 
-        canvas.set_draw_color(sdl2::pixels::Color::RGB(255, 255, 255));
-
         for col in 0..8 {
             let rooms_in_column = level::rooms_in_col(col);
             for row in 0..rooms_in_column {
                 match &self.level.rooms[col][row] {
-                    Room::FullRoom(_doors) => {
+                    Room::FullRoom(doors) => {
                         let room_pos = level::room_corner_position(col, row);
                         let dest_rect = sdl2::rect::Rect::new(
                             ((room_pos.x + SCREEN_PADDING) * scale) as i32,
@@ -40,9 +38,11 @@ impl Map {
                             (ROOM_WIDTH * scale) as u32,
                             (ROOM_LENGTH * scale) as u32,
                         );
+
+                        canvas.set_draw_color(sdl2::pixels::Color::RGB(255, 255, 255));
                         canvas.fill_rect(dest_rect)?;
 
-                        //self.draw_doors(canvas, doors, (col, row), scale)?;
+                        self.draw_doors(canvas, doors, (col, row), scale)?;
                     }
                     Room::Corridor(_doors) => {
                         //
@@ -55,7 +55,7 @@ impl Map {
         Ok(())
     }
 
-    fn _draw_doors(
+    fn draw_doors(
         &self,
         canvas: &mut Canvas<Window>,
         doors: &[(i8, i8)],
@@ -66,13 +66,24 @@ impl Map {
         let screen_center = vec2(screen_w as f32 * 0.5, screen_h as f32 * 0.5);
 
         for door in doors {
-            let (door_pos, _door_size) = level::doorway_bounds(grid_pos, *door);
-            let _dest_rect = sdl2::rect::Rect::new(
+            let (door_corner1, door_corner2) = level::doorway_bounds(grid_pos, *door);
+            let door_pos = vec2(
+                door_corner1.x.min(door_corner2.x),
+                door_corner1.y.min(door_corner2.y),
+            );
+            let door_size = vec2(
+                (door_corner1.x - door_corner2.x).abs(),
+                (door_corner1.y - door_corner2.y).abs(),
+            );
+            let dest_rect = sdl2::rect::Rect::new(
                 ((door_pos.x + SCREEN_PADDING) * scale) as i32,
                 (screen_center.y + door_pos.y * scale) as i32,
-                (constants::ROOM_WIDTH * scale) as u32,
-                (constants::ROOM_LENGTH * scale) as u32,
+                (door_size.x * scale) as u32,
+                (door_size.y * scale) as u32,
             );
+
+            canvas.set_draw_color(sdl2::pixels::Color::RGB(255, 0, 0));
+            canvas.fill_rect(dest_rect)?;
         }
         Ok(())
     }

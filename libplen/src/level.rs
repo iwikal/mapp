@@ -45,7 +45,7 @@ pub fn doorway_transform((col, row): (usize, usize), (dx, dy): (i8, i8)) -> (Mat
         (0, 0) => panic!("invalid doorway {:?}", delta),
         (0, -1..=1) => {
             let rotation = Mat2::identity() * dy as f32;
-            let translation = vec2(0., ROOM_LENGTH) * dy as f32;
+            let translation = vec2(0., ROOM_LENGTH / 2.) * dy as f32;
             (rotation, translation)
         }
         (-1..=1, -1..=1) => {
@@ -68,7 +68,7 @@ pub fn doorway_transform((col, row): (usize, usize), (dx, dy): (i8, i8)) -> (Mat
 
 pub fn doorway_bounds((col, row): (usize, usize), (dx, dy): (i8, i8)) -> (Vec2, Vec2) {
     let this_pos = room_corner_position(col, row);
-    let room_center = this_pos + vec2(ROOM_WIDTH, ROOM_LENGTH);
+    let room_center = this_pos + vec2(ROOM_WIDTH / 2., ROOM_LENGTH / 2.);
     let (rotation, translation) = doorway_transform((col, row), (dx, dy));
     let door_pos = room_center + translation;
 
