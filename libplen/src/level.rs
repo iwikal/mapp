@@ -97,14 +97,14 @@ pub fn example_level() -> Level {
             ],
             vec![
                 FullRoom(vec![(0, 1), (1, 0)]),
-                Corridor(vec![(-1, 0), (0, -1), (1, 0)]),
+                Corridor(vec![(-1, -1), (0, -1), (1, 0)]),
                 Corridor(vec![(1, 0), (0, 1)]),
                 Corridor(vec![(-1, -1), (0, -1), (1, 0)]),
             ],
             vec![
                 FullRoom(vec![(-1, 0), (0, 1)]),
                 FullRoom(vec![(-1, 0), (0, -1), (1, -1)]),
-                FullRoom(vec![(-1, 0), (1, -1)]),
+                FullRoom(vec![(-1, 0), (1, -1), (0, 1)]),
                 Corridor(vec![(-1, 0), (0, -1)]),
             ],
             vec![

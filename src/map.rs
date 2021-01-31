@@ -45,7 +45,21 @@ impl Map {
                         self.draw_doors(canvas, doors, (col, row), scale)?;
                     }
                     Room::Corridor(doors) => {
-                        // TODO: Draw corridors
+                        let room_pos = level::room_corner_position(col, row);
+                        let room_center = room_pos + vec2(ROOM_WIDTH / 2., ROOM_LENGTH / 2.);
+                        let rc_x = ((room_center.x + SCREEN_PADDING) * scale) as i32;
+                        let rc_y = (screen_center.y + room_center.y * scale) as i32;
+
+                        canvas.set_draw_color(sdl2::pixels::Color::RGB(200, 200, 200));
+                        for door in doors {
+                            let door_offset = level::doorway_transform((col, row), *door).1;
+                            let door_pos = room_center + door_offset;
+
+                            let door_x = ((door_pos.x + SCREEN_PADDING) * scale) as i32;
+                            let door_y = (screen_center.y + door_pos.y * scale) as i32;
+
+                            canvas.draw_line((rc_x, rc_y), (door_x, door_y),)?;
+                        }
 
                         self.draw_doors(canvas, doors, (col, row), scale)?;
                     }
