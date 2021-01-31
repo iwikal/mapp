@@ -8,7 +8,7 @@ use libplen::level::{self, Level};
 use libplen::messages::{ClientInput, ClientMessage, MessageReader, ServerMessage};
 use libplen::player;
 
-use crate::{assets::{Assets, SoundAssets}, gamestate, map, StateResult};
+use crate::{assets::Assets, gamestate, map, StateResult};
 
 pub struct DispatcherState {
     my_id: u64,
@@ -29,7 +29,6 @@ impl DispatcherState {
 
     pub fn update(
         &mut self,
-        _sounds: &SoundAssets,
         server_reader: &mut MessageReader,
         keyboard_state: &sdl2::keyboard::KeyboardState,
     ) -> StateResult {
