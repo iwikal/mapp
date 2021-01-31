@@ -79,6 +79,11 @@ pub fn main() -> Result<(), String> {
     let _mixer_context =
         sdl2::mixer::init(sdl2::mixer::InitFlag::OGG).expect("Could not initialize SDL mixer");
 
+    // Allows 64 sounds to play simultaneously
+    sdl2::mixer::allocate_channels(64);
+
+    let ttf_context = sdl2::ttf::init().expect("Could not initialize SDL ttf");
+
     let mut name = whoami::username();
 
     let mut event_pump = sdl.event_pump().expect("Could not get event pump");
@@ -109,11 +114,6 @@ pub fn main() -> Result<(), String> {
                 .expect("Could not create canvas");
             canvas.set_blend_mode(BlendMode::Blend);
             let texture_creator = canvas.texture_creator();
-
-            // Allows 64 sounds to play simultaneously
-            sdl2::mixer::allocate_channels(64);
-
-            let ttf_context = sdl2::ttf::init().expect("Could not initialize SDL ttf");
 
             let mut assets = Assets::new(&texture_creator, &ttf_context);
 
