@@ -1,5 +1,3 @@
-use std::f32::consts::PI;
-
 // currently hardcoded to the background image size
 pub const WORLD_SIZE: f32 = 3000.;
 pub const DELTA_TIME: f32 = 0.01;
@@ -15,6 +13,7 @@ pub const PLAYER_SPEED: f32 = 50.;
 
 pub const ROOM_WIDTH: f32 = 3.;
 pub const ROOM_LENGTH: f32 = 3.;
+pub const CEILING_HEIGHT: f32 = 2.1;
 pub const DOORWAY_LENGTH: f32 = 0.75;
 pub const DOOR_WIDTH: f32 = 1.0;
 

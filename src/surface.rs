@@ -1,10 +1,10 @@
-use luminance::context::GraphicsContext;
+pub use luminance::context::GraphicsContext;
 use luminance::framebuffer::Framebuffer;
 use luminance::framebuffer::FramebufferError;
 use luminance::texture::Dim2;
-pub use luminance_gl::gl33::StateQueryError;
+use luminance_gl::gl33::StateQueryError;
 use luminance_gl::GL33;
-pub use sdl2;
+use sdl2;
 use std::fmt;
 use std::os::raw::c_void;
 
@@ -12,8 +12,6 @@ use std::os::raw::c_void;
 #[non_exhaustive]
 #[derive(Debug)]
 pub enum Sdl2SurfaceError {
-    /// Initialization of the surface went wrong.
-    InitError(String),
     /// Window creation failed.
     WindowCreationFailed(sdl2::video::WindowBuildError),
     /// Failed to create an OpenGL context.
@@ -30,7 +28,6 @@ pub enum Sdl2SurfaceError {
 impl fmt::Display for Sdl2SurfaceError {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match *self {
-            Sdl2SurfaceError::InitError(ref e) => write!(f, "initialization error: {}", e),
             Sdl2SurfaceError::WindowCreationFailed(ref e) => {
                 write!(f, "failed to create window: {}", e)
             }

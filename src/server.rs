@@ -144,7 +144,7 @@ impl Server {
             };
         }
 
-        let mut players_to_add = vec!();
+        let mut players_to_add = vec![];
 
         for client in self.connections.iter_mut() {
             remove_player_on_disconnect!(client.message_reader.fetch_bytes(), client.id);
@@ -154,7 +154,11 @@ impl Server {
                     Ok(ClientMessage::Input(input)) => {
                         client.input = input;
                     }
-                    Ok(ClientMessage::JoinTeam { team_id, player_type, name }) => {
+                    Ok(ClientMessage::JoinTeam {
+                        team_id,
+                        player_type,
+                        name,
+                    }) => {
                         players_to_add.push((client.id, team_id, player_type, name));
                     }
                     Ok(ClientMessage::SetName { mut name }) => {
@@ -206,9 +210,14 @@ impl Server {
     }
 
     fn try_add_player_to_team(
-        &mut self, player_id: u64, team_id: u64, player_type: PlayerType, name: String
+        &mut self,
+        player_id: u64,
+        team_id: u64,
+        player_type: PlayerType,
+        name: String,
     ) {
-        self.state.try_add_player_to_team(player_id, team_id, player_type, name);
+        self.state
+            .try_add_player_to_team(player_id, team_id, player_type, name);
     }
 }
 

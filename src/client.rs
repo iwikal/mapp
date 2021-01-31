@@ -9,9 +9,9 @@ use std::io::prelude::*;
 use std::net::TcpStream;
 use std::time::Instant;
 
-use sdl2::mouse::MouseButton;
 use sdl2::event::{Event, WindowEvent};
 use sdl2::keyboard::{Keycode, Scancode};
+use sdl2::mouse::MouseButton;
 use sdl2::render::BlendMode;
 use sdl2::render::Canvas;
 use sdl2::video::Window;
@@ -139,14 +139,14 @@ pub fn main() -> Result<(), String> {
                                 menu_state.name += &text;
                             }
                         }
-                        Event::MouseButtonDown { x, y, mouse_btn, .. } => {
-                            match mouse_btn {
-                                MouseButton::Left => {
-                                    current_mouse_click = Some((x, y));
-                                },
-                                _ => { }
+                        Event::MouseButtonDown {
+                            x, y, mouse_btn, ..
+                        } => match mouse_btn {
+                            MouseButton::Left => {
+                                current_mouse_click = Some((x, y));
                             }
-                        }
+                            _ => {}
+                        },
                         _ => {}
                     }
                 }

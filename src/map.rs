@@ -1,7 +1,7 @@
 use sdl2::render::Canvas;
 use sdl2::video::Window;
 
-use libplen::constants::{self, ROOM_LENGTH, ROOM_WIDTH, DOORWAY_LENGTH, SCREEN_PADDING};
+use libplen::constants::{self, DOORWAY_LENGTH, ROOM_LENGTH, ROOM_WIDTH, SCREEN_PADDING};
 use libplen::gamestate::GameState;
 use libplen::level::{self, Level, Room};
 use libplen::math::{self, vec2, Vec2};
@@ -15,9 +15,7 @@ pub struct Map {
 
 impl Map {
     pub fn new(level: Level) -> Map {
-        Map {
-            level
-        }
+        Map { level }
     }
 
     pub fn update(&mut self, delta_time: f32, game_state: &GameState, my_id: u64) {

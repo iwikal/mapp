@@ -1,3 +1,5 @@
+mod room;
+mod shader;
 mod sprite;
 
 use std::time::Instant;
@@ -6,7 +8,8 @@ use sdl2::event::{Event, WindowEvent};
 use sdl2::keyboard::Scancode;
 use sdl2::EventPump;
 
-use luminance::context::GraphicsContext as _;
+use luminance::blending::{Blending, Equation, Factor};
+use luminance::context::GraphicsContext;
 use luminance::pipeline::PipelineState;
 use luminance::render_state::RenderState;
 use luminance::shader::BuiltProgram;
@@ -119,7 +122,9 @@ impl AgentState {
     }
 
     fn myself(&self) -> &player::Player {
-        let Self { my_id, game_state, .. } = self;
+        let Self {
+            my_id, game_state, ..
+        } = self;
         game_state.get_player_by_id(*my_id).unwrap()
     }
 }
@@ -131,6 +136,8 @@ pub fn gameloop(
     sounds: &SoundAssets,
     my_id: u64,
 ) -> (StateResult, sdl2::Sdl) {
+    sdl.mouse().set_relative_mouse_mode(true);
+
     let mut surface = surface::Sdl2Surface::build_with(sdl, |video| {
         let mut wb = video.window(
             "MAPP",
@@ -148,17 +155,10 @@ pub fn gameloop(
     let mut sprite_program = {
         let vs = include_str!("../../shaders/sprite.vert");
         let fs = include_str!("../../shaders/sprite.frag");
-        let BuiltProgram { program, warnings } = surface
-            .new_shader_program::<(), (), sprite::SpriteInterface>()
-            .from_strings(vs, None, None, fs)
-            .expect("Failed to compile shaders");
-
-        for warning in warnings {
-            eprintln!("{}", warning);
-        }
-
-        program
+        shader::compile_shader::<(), (), sprite::SpriteInterface>(&mut surface, vs, fs)
     };
+
+    let mut room_model = room::RoomModel::new(&mut surface);
 
     let sprite_tess = surface
         .new_tess()
@@ -178,7 +178,7 @@ pub fn gameloop(
     fn make_projection_matrix(surface: &surface::Sdl2Surface) -> Mat4 {
         let (width, height) = surface.window().size();
         let aspect_ratio = width as f32 / height as f32;
-        let fov = 90_f32.to_radians();
+        let fov = 60_f32.to_radians();
         ultraviolet::projection::perspective_gl(fov, aspect_ratio, 0.01, 100.0)
     }
 
@@ -186,6 +186,8 @@ pub fn gameloop(
     let mut resize = false;
 
     let mut flower_sprite = sprite::load_sprite(&mut surface, "resources/flower.png");
+
+    let mut rotation = 0_f32;
 
     loop {
         for event in event_pump.poll_iter() {
@@ -202,6 +204,9 @@ pub fn gameloop(
                     win_event: WindowEvent::SizeChanged(..),
                     ..
                 } => resize = true,
+                Event::MouseMotion { xrel, .. } => {
+                    rotation -= xrel as f32 * 0.001;
+                }
                 _ => {}
             }
         }
@@ -218,7 +223,7 @@ pub fn gameloop(
         // let myself = agent_state.myself();
 
         let my_pos = Vec3::new(0., 0., 1.); // FIXME
-        let view = Mat4::from_translation(-my_pos);
+        let view = Mat4::from_rotation_y(rotation) * Mat4::from_translation(-my_pos);
 
         // Create a new dynamic pipeline that will render to the back buffer and must clear it
         // with pitch black prior to do any render to it.
@@ -231,6 +236,14 @@ pub fn gameloop(
                     // Draw text.
                     glyph_brush.draw_queued(&mut pipeline, &mut shd_gate, 1024, 720)?;
 
+                    room_model.draw(
+                        &mut pipeline,
+                        &mut shd_gate,
+                        Mat4::identity(),
+                        view,
+                        projection,
+                    )?;
+
                     let bound_tex = pipeline.bind_texture(&mut flower_sprite)?;
 
                     // Start shading with our program.
@@ -241,7 +254,13 @@ pub fn gameloop(
 
                         // Start rendering things with the default render state provided by
                         // luminance.
-                        rdr_gate.render(&RenderState::default(), |mut tess_gate| {
+                        let render_state = RenderState::default()
+                            .set_blending(Blending {
+                                equation: Equation::Additive,
+                                src: Factor::SrcAlpha,
+                                dst: Factor::SrcAlphaComplement,
+                            });
+                        rdr_gate.render(&render_state, |mut tess_gate| {
                             tess_gate.render(&sprite_tess)
                         })
                     })?;
