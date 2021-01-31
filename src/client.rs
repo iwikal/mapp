@@ -118,8 +118,6 @@ pub fn main() -> Result<(), String> {
             canvas.set_blend_mode(BlendMode::Blend);
             let texture_creator = canvas.texture_creator();
 
-            let ttf_context = sdl2::ttf::init().expect("Could not initialize SDL ttf");
-
             let mut assets = Assets::new(&texture_creator, &ttf_context, SoundAssets::new());
 
             'menuloop: loop {
