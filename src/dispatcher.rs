@@ -47,8 +47,7 @@ impl DispatcherState {
                     panic!("Got new ID after intialisation")
                 }
                 ServerMessage::GameState(state) => self.game_state = state,
-                ServerMessage::PlaySound(_sound, _pos) => {
-                }
+                ServerMessage::PlaySound(_sound, _pos) => {}
             }
         }
 
@@ -77,7 +76,9 @@ impl DispatcherState {
     }
 
     fn _myself(&self) -> &player::Player {
-        let Self { my_id, game_state, .. } = self;
+        let Self {
+            my_id, game_state, ..
+        } = self;
         game_state.get_player_by_id(*my_id).unwrap()
     }
 

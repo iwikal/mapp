@@ -17,7 +17,7 @@ use luminance::shader::BuiltProgram;
 use luminance_derive::{Semantics, Vertex};
 use luminance_glyph::{GlyphBrushBuilder, Section, Text};
 
-use ultraviolet::{Mat4, Vec3};
+use ultraviolet::{Mat4, Vec2, Vec3};
 
 use libplen::level::{self, Level};
 use libplen::messages::{ClientInput, ClientMessage, MessageReader, ServerMessage, SoundEffect};
@@ -131,7 +131,8 @@ pub fn gameloop(
     my_id: u64,
 ) -> StateResult {
     let (w, h) = window.drawable_size();
-    let mut back_buffer = Framebuffer::back_buffer(surface, [w, h]).expect("Could not get back buffer");
+    let mut back_buffer =
+        Framebuffer::back_buffer(surface, [w, h]).expect("Could not get back buffer");
 
     let mut sprite_program = {
         let vs = include_str!("../../shaders/sprite.vert");
@@ -188,7 +189,8 @@ pub fn gameloop(
 
         if resize {
             let (w, h) = window.drawable_size();
-            back_buffer = Framebuffer::back_buffer(surface, [w, h]).expect("Could not get back buffer");
+            back_buffer =
+                Framebuffer::back_buffer(surface, [w, h]).expect("Could not get back buffer");
             projection = make_projection_matrix(window);
             resize = false;
         }
@@ -196,11 +198,7 @@ pub fn gameloop(
         let mouse_state = event_pump.relative_mouse_state();
         let keyboard_state = event_pump.keyboard_state();
 
-        agent_state.update(
-            server_reader,
-            &keyboard_state,
-            &mouse_state,
-        );
+        agent_state.update(server_reader, &keyboard_state, &mouse_state);
         glyph_brush.process_queued(surface);
 
         let myself = agent_state.myself();
@@ -219,13 +217,30 @@ pub fn gameloop(
                     // Draw text.
                     glyph_brush.draw_queued(&mut pipeline, &mut shd_gate, 1024, 720)?;
 
-                    room_model.draw(
-                        &mut pipeline,
-                        &mut shd_gate,
-                        Mat4::identity(),
-                        view,
-                        projection,
-                    )?;
+                    let level = &agent_state.map.level;
+                    for (column, rooms) in level.rooms.iter().enumerate() {
+                        for (row, room) in rooms.iter().enumerate() {
+                            let pos = crate::level::room_corner_position(column, row)
+                                + Vec2::new(constants::ROOM_WIDTH, constants::ROOM_LENGTH) * 0.5;
+                            let translation = Vec3::new(pos.x, 0., pos.y);
+                            let model_matrix = Mat4::from_translation(translation);
+
+                            match room {
+                                crate::level::Room::FullRoom(_doorways) => {
+                                    room_model.draw(
+                                        &mut pipeline,
+                                        &mut shd_gate,
+                                        model_matrix,
+                                        view,
+                                        projection,
+                                    )?;
+                                }
+                                _ => {
+                                    // TODO render hallways
+                                }
+                            }
+                        }
+                    }
 
                     let bound_tex = pipeline.bind_texture(&mut flower_sprite)?;
 

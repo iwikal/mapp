@@ -7,7 +7,7 @@ use libplen::level::{self, Level, Room};
 use libplen::math::vec2;
 
 pub struct Map {
-    level: Level,
+    pub level: Level,
 }
 
 impl Map {

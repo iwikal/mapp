@@ -85,9 +85,8 @@ impl Sdl2Surface {
     /// ```
     pub fn build_with(
         window: &sdl2::video::Window,
-        video_system: &sdl2::VideoSubsystem
-    ) -> Result<Self, Sdl2SurfaceError>
-    {
+        video_system: &sdl2::VideoSubsystem,
+    ) -> Result<Self, Sdl2SurfaceError> {
         let _gl_context = window
             .gl_create_context()
             .map_err(Sdl2SurfaceError::GlContextInitFailed)?;
@@ -96,10 +95,7 @@ impl Sdl2Surface {
 
         let gl = GL33::new().map_err(Sdl2SurfaceError::GraphicsStateError)?;
 
-        let surface = Sdl2Surface {
-            gl,
-            _gl_context,
-        };
+        let surface = Sdl2Surface { gl, _gl_context };
 
         Ok(surface)
     }
