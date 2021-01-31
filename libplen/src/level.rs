@@ -58,7 +58,7 @@ pub fn doorway_transform((col, row): (usize, usize), (dx, dy): (i8, i8)) -> (Mat
             let other_room = room_corner_position((col as i8 + dx) as _, (row as i8 + dy) as _);
             let midpoint = (other_room - this_room) / 2.;
 
-            let translation = vec2(ROOM_WIDTH / 2., midpoint.y);
+            let translation = vec2(ROOM_WIDTH / 2. * dx as f32, midpoint.y);
 
             (rotation, translation)
         }
@@ -72,7 +72,7 @@ pub fn doorway_bounds((col, row): (usize, usize), (dx, dy): (i8, i8)) -> (Vec2, 
     let (rotation, translation) = doorway_transform((col, row), (dx, dy));
     let door_pos = room_center + translation;
 
-    let one_corner = vec2(-DOOR_WIDTH / 2., -DOORWAY_LENGTH / 2.);
+    let one_corner = vec2(DOOR_WIDTH / 2., DOORWAY_LENGTH / 2.);
     let other_corner = one_corner * -1.;
 
     (
