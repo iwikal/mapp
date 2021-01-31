@@ -44,8 +44,10 @@ impl Map {
 
                         self.draw_doors(canvas, doors, (col, row), scale)?;
                     }
-                    Room::Corridor(_doors) => {
-                        //
+                    Room::Corridor(doors) => {
+                        // TODO: Draw corridors
+
+                        self.draw_doors(canvas, doors, (col, row), scale)?;
                     }
                     Room::Empty => {}
                 }
