@@ -29,3 +29,4 @@ Extract them both according to the same instructions as noted in the SDL2 tutori
 Plen should now compile and you should be able to run the game under Windows.
 
 ## Attribution
+Yoster font by codeman38 | cody@zone38.net | http://www.zone38.net/
