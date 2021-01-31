@@ -203,7 +203,7 @@ pub fn gameloop(
 
         let myself = agent_state.myself();
 
-        let my_pos = Vec3::new(myself.position.x, 0., myself.position.y); // FIXME
+        let my_pos = Vec3::new(myself.position.x, 1.6, myself.position.y); // FIXME
         let view = Mat4::from_rotation_y(myself.rotation) * Mat4::from_translation(-my_pos);
 
         // Create a new dynamic pipeline that will render to the back buffer and must clear it
@@ -220,19 +220,15 @@ pub fn gameloop(
                     let level = &agent_state.map.level;
                     for (column, rooms) in level.rooms.iter().enumerate() {
                         for (row, room) in rooms.iter().enumerate() {
-                            let pos = crate::level::room_corner_position(column, row)
-                                + Vec2::new(constants::ROOM_WIDTH, constants::ROOM_LENGTH) * 0.5;
-                            let translation = Vec3::new(pos.x, 0., pos.y);
-                            let model_matrix = Mat4::from_translation(translation);
-
                             match room {
-                                crate::level::Room::FullRoom(_doorways) => {
+                                crate::level::Room::FullRoom(doorways) => {
                                     room_model.draw(
                                         &mut pipeline,
                                         &mut shd_gate,
-                                        model_matrix,
                                         view,
                                         projection,
+                                        (column, row),
+                                        doorways,
                                     )?;
                                 }
                                 _ => {

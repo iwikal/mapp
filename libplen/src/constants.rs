@@ -14,10 +14,11 @@ pub const STATUS_TEXT_POS: (f32, f32) = (50., 200.);
 pub const PLAYER_SPEED: f32 = 1.5;
 
 pub const ROOM_WIDTH: f32 = 3.;
-pub const ROOM_LENGTH: f32 = 3.;
-pub const CEILING_HEIGHT: f32 = 2.1;
+pub const ROOM_LENGTH: f32 = 5.;
+pub const CEILING_HEIGHT: f32 = 2.5;
+pub const DOOR_HEIGHT: f32 = 2.1;
 pub const DOORWAY_LENGTH: f32 = 0.75;
-pub const DOOR_WIDTH: f32 = 1.0;
+pub const DOOR_WIDTH: f32 = 1.2;
 
 pub const SCREEN_PADDING: f32 = 0.5;
 
