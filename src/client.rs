@@ -153,15 +153,20 @@ pub fn main() -> Result<(), String> {
                 rendering::setup_coordinates(&mut canvas)?;
 
                 let window_size = canvas.logical_size();
-                let messages_to_send = menu_state.update(
-                    &mut reader, current_mouse_click, window_size);
+                let messages_to_send =
+                    menu_state.update(&mut reader, current_mouse_click, window_size);
                 for message in messages_to_send {
                     send_client_message(&message, &mut reader.stream);
                 }
 
-                if let Some(me) = menu_state.game_state.get_player_by_id(my_id) {
-                    menu_state.draw(&mut canvas, &assets, &me).unwrap();
-                }
+                let my_player_type = menu_state
+                    .game_state
+                    .get_player_by_id(my_id)
+                    .map(|player| player.player_type);
+
+                menu_state
+                    .draw(&mut canvas, &assets, my_player_type)
+                    .unwrap();
             }
 
             assets.sounds

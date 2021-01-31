@@ -5,12 +5,12 @@ use sdl2::video::Window;
 
 use crate::assets::Assets;
 use crate::rendering;
-use libplen::constants;
 
-use libplen::math::{vec2, Vec2};
-use libplen::player::{PlayerType, Player};
-use libplen::messages::{MessageReader, ServerMessage, ClientMessage};
+use libplen::constants;
 use libplen::gamestate::GameState;
+use libplen::math::{vec2, Vec2};
+use libplen::messages::{ClientMessage, MessageReader, ServerMessage};
+use libplen::player::{Player, PlayerType};
 
 pub enum ButtonAction {
     SetAgent(u64), // team id
@@ -50,10 +50,10 @@ impl MenuState {
     }
 
     pub fn build_menu_buttons(&mut self) {
-        let red_disp_pos = vec2(1./4., constants::MENU_BUTTON_JOIN_DISPATCHER_Y);
-        let blue_disp_pos = vec2(3./4., constants::MENU_BUTTON_JOIN_DISPATCHER_Y);
-        let red_ag_pos = vec2(1./4., constants::MENU_BUTTON_JOIN_AGENT_Y);
-        let blue_ag_pos = vec2(3./4., constants::MENU_BUTTON_JOIN_AGENT_Y);
+        let red_disp_pos = vec2(1. / 4., constants::MENU_BUTTON_JOIN_DISPATCHER_Y);
+        let blue_disp_pos = vec2(3. / 4., constants::MENU_BUTTON_JOIN_DISPATCHER_Y);
+        let red_ag_pos = vec2(1. / 4., constants::MENU_BUTTON_JOIN_AGENT_Y);
+        let blue_ag_pos = vec2(3. / 4., constants::MENU_BUTTON_JOIN_AGENT_Y);
 
         let red_disp_btn = Button {
             pos: red_disp_pos,
@@ -172,8 +172,9 @@ impl MenuState {
                     //let rect = *button.rect;
                     let rx = (button.pos.x * (width as f32)) as i32;
                     let ry = (button.pos.y * (height as f32)) as i32;
-                    if (px >= rx && px <= rx + button.w as i32) &&
-                       (py >= ry && py <= ry + button.h as i32) {
+                    if (px >= rx && px <= rx + button.w as i32)
+                        && (py >= ry && py <= ry + button.h as i32)
+                    {
                         self.perform_button_action(&button.action, messages_to_send);
                     }
                 }
@@ -181,7 +182,12 @@ impl MenuState {
         }
     }
 
-    pub fn draw(&mut self, canvas: &mut Canvas<Window>, assets: &Assets, player: &Player) -> Result<(), String> {
+    pub fn draw(
+        &mut self,
+        canvas: &mut Canvas<Window>,
+        assets: &Assets,
+        player_type: Option<PlayerType>,
+    ) -> Result<(), String> {
         let (width, height) = canvas.logical_size();
         canvas.set_draw_color(constants::MENU_BACKGROUND_COLOR);
         canvas.clear();
@@ -192,7 +198,10 @@ impl MenuState {
 
         self.draw_buttons(canvas, assets);
 
-        self.draw_player_status(canvas, assets, player, 0);
+        if let Some(player_type) = player_type {
+            self.draw_player_status(canvas, assets, player_type, 0)
+                .unwrap();
+        }
 
         canvas.present();
         Ok(())
@@ -202,15 +211,19 @@ impl MenuState {
         &mut self,
         canvas: &mut Canvas<Window>,
         assets: &Assets,
-        player: &Player,
+        player_type: PlayerType,
         team_id: u64,
     ) -> Result<(), String> {
         let (nx, ny) = constants::STATUS_TEXT_POS;
-        let disp_ag_text = match player.player_type {
+        let disp_ag_text = match player_type {
             PlayerType::Agent => "agent",
-            PlayerType::Dispatcher => "dispatcher"
+            PlayerType::Dispatcher => "dispatcher",
         };
-        let team_text = if team_id == constants::TEAM_RED_ID { "RED" } else { "BLUE" };
+        let team_text = if team_id == constants::TEAM_RED_ID {
+            "RED"
+        } else {
+            "BLUE"
+        };
         let text = assets
             .font
             .render(&format!("You are {} in team {}", disp_ag_text, team_text))
@@ -232,7 +245,9 @@ impl MenuState {
             let ry = (button.pos.y * (height as f32)) as i32;
 
             canvas.set_draw_color(button.color);
-            canvas.fill_rect(Rect::new(rx, ry, button.w, button.h));
+            canvas
+                .fill_rect(Rect::new(rx, ry, button.w, button.h))
+                .unwrap();
 
             let text = assets
                 .font
@@ -244,17 +259,26 @@ impl MenuState {
             let text_texture = texture_creator.create_texture_from_surface(text).unwrap();
 
             //let res_offset = rendering::calculate_resolution_offset(canvas);
-            rendering::draw_texture(canvas, &text_texture, vec2(rx as f32 + 10., ry as f32 + 10.));
+            rendering::draw_texture(
+                canvas,
+                &text_texture,
+                vec2(rx as f32 + 10., ry as f32 + 10.),
+            )
+            .unwrap();
         }
     }
 
     fn draw_background(&mut self, canvas: &mut Canvas<Window>) {
         let (width, height) = canvas.logical_size();
-        let line = Rect::new((width/2 - constants::MENU_CENTER_LINE_WIDTH/2) as i32,
-                             0, constants::MENU_CENTER_LINE_WIDTH, height);
+        let line = Rect::new(
+            (width / 2 - constants::MENU_CENTER_LINE_WIDTH / 2) as i32,
+            0,
+            constants::MENU_CENTER_LINE_WIDTH,
+            height,
+        );
 
-        let left = Rect::new(0, 0, (width/2) as u32, height);
-        let right = Rect::new((width/2) as i32, 0, (width/2) as u32, height);
+        let left = Rect::new(0, 0, (width / 2) as u32, height);
+        let right = Rect::new((width / 2) as i32, 0, (width / 2) as u32, height);
 
         canvas.set_draw_color(constants::MENU_RED_BACKGROUND_COLOR);
         canvas.fill_rect(left).unwrap();
