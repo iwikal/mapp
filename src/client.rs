@@ -1,5 +1,6 @@
 mod agent;
 mod assets;
+mod dispatcher;
 mod map;
 mod menu;
 mod rendering;
@@ -17,6 +18,7 @@ use sdl2::render::Canvas;
 use sdl2::video::Window;
 
 use assets::{Assets, SoundAssets};
+use dispatcher::DispatcherState;
 use libplen::constants;
 use libplen::gamestate;
 use libplen::level::{self, Level};
@@ -90,6 +92,8 @@ pub fn main() -> Result<(), String> {
 
     let mut sdl = Some(sdl);
 
+    // TODO: only create a window and load assets once
+
     'mainloop: loop {
         let menu_state = &mut MenuState::new(my_id);
 
@@ -118,7 +122,7 @@ pub fn main() -> Result<(), String> {
             canvas.set_blend_mode(BlendMode::Blend);
             let texture_creator = canvas.texture_creator();
 
-            let mut assets = Assets::new(&texture_creator, &ttf_context, SoundAssets::new());
+            let assets = Assets::new(&texture_creator, &ttf_context, SoundAssets::new());
 
             'menuloop: loop {
                 let mut current_mouse_click: Option<(i32, i32)> = None;
@@ -199,7 +203,59 @@ pub fn main() -> Result<(), String> {
                 }
             }
             libplen::player::PlayerType::Dispatcher => {
-                todo!();
+                let my_sdl = sdl.take().unwrap();
+                let video_subsystem = my_sdl.video().expect("Could not initialize SDL video");
+                let window = video_subsystem
+                    .window(
+                        "MAPP",
+                        constants::WINDOW_SIZE as u32,
+                        constants::WINDOW_SIZE as u32,
+                    )
+                    .fullscreen_desktop()
+                    .resizable()
+                    .build()
+                    .expect("Could not create window");
+
+                let mut canvas = window
+                    .into_canvas()
+                    .build()
+                    .expect("Could not create canvas");
+                canvas.set_blend_mode(BlendMode::Blend);
+                let texture_creator = canvas.texture_creator();
+                let assets = Assets::new(&texture_creator, &ttf_context, SoundAssets::new());
+
+                let dispatcher_state = &mut DispatcherState::new(my_id);
+
+                let result = 'dispatcher_loop: loop {
+                    for event in event_pump.poll_iter() {
+                        match event {
+                            Event::Window {
+                                win_event: WindowEvent::Close,
+                                ..
+                            }
+                            | Event::Quit { .. } => {
+                                break 'dispatcher_loop StateResult::Quit;
+                            }
+                            _ => {}
+                        }
+                    }
+                    dispatcher_state.update(&sound_assets, &mut reader, &event_pump.keyboard_state());
+
+                    canvas.set_draw_color(constants::MENU_BACKGROUND_COLOR);
+                    canvas.clear();
+
+                    dispatcher_state.draw(&mut canvas, &assets).unwrap();
+
+                    canvas.present();
+                };
+
+                sdl = Some(my_sdl);
+
+                match result {
+                    StateResult::Quit => break 'mainloop,
+                    StateResult::Continue => continue,
+                    StateResult::GotoNext => (),
+                }
             }
         }
     }

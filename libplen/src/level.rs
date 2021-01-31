@@ -43,7 +43,6 @@ pub fn room_corner_position(col: usize, row: usize) -> Vec2 {
 }
 
 pub fn doorway_bounds((col, row): (usize, usize), (dx, dy): (i8, i8)) -> (Vec2, Vec2) {
-    // NOTE: note finished!
     let this_pos = room_corner_position(col, row);
     let other_pos = room_corner_position((col as i8 + dx) as usize, (row as i8 + dy) as usize);
 

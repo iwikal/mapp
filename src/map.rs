@@ -4,10 +4,7 @@ use sdl2::video::Window;
 use libplen::constants::{self, DOORWAY_LENGTH, ROOM_LENGTH, ROOM_WIDTH, SCREEN_PADDING};
 use libplen::gamestate::GameState;
 use libplen::level::{self, Level, Room};
-use libplen::math::{self, vec2, Vec2};
-
-use crate::assets::Assets;
-use crate::rendering;
+use libplen::math::vec2;
 
 pub struct Map {
     level: Level,
@@ -18,11 +15,11 @@ impl Map {
         Map { level }
     }
 
-    pub fn update(&mut self, delta_time: f32, game_state: &GameState, my_id: u64) {
+    pub fn update(&mut self, _delta_time: f32, _game_state: &GameState, _my_id: u64) {
         // update client side stuff
     }
 
-    pub fn draw(&self, my_id: u64, canvas: &mut Canvas<Window>) -> Result<(), String> {
+    pub fn draw(&self, canvas: &mut Canvas<Window>) -> Result<(), String> {
         let (screen_w, screen_h) = canvas.logical_size();
         let screen_center = vec2(screen_w as f32 * 0.5, screen_h as f32 * 0.5);
 
@@ -35,7 +32,7 @@ impl Map {
             let rooms_in_column = level::rooms_in_col(col);
             for row in 0..rooms_in_column {
                 match &self.level.rooms[col][row] {
-                    Room::FullRoom(doors) => {
+                    Room::FullRoom(_doors) => {
                         let room_pos = level::room_corner_position(col, row);
                         let dest_rect = sdl2::rect::Rect::new(
                             ((room_pos.x + SCREEN_PADDING) * scale) as i32,
@@ -47,7 +44,7 @@ impl Map {
 
                         //self.draw_doors(canvas, doors, (col, row), scale)?;
                     }
-                    Room::Corridor(doors) => {
+                    Room::Corridor(_doors) => {
                         //
                     }
                     Room::Empty => {}
@@ -58,7 +55,7 @@ impl Map {
         Ok(())
     }
 
-    fn draw_doors(
+    fn _draw_doors(
         &self,
         canvas: &mut Canvas<Window>,
         doors: &[(i8, i8)],
@@ -69,8 +66,8 @@ impl Map {
         let screen_center = vec2(screen_w as f32 * 0.5, screen_h as f32 * 0.5);
 
         for door in doors {
-            let (door_pos, door_size) = level::doorway_bounds(grid_pos, *door);
-            let dest_rect = sdl2::rect::Rect::new(
+            let (door_pos, _door_size) = level::doorway_bounds(grid_pos, *door);
+            let _dest_rect = sdl2::rect::Rect::new(
                 ((door_pos.x + SCREEN_PADDING) * scale) as i32,
                 (screen_center.y + door_pos.y * scale) as i32,
                 (constants::ROOM_WIDTH * scale) as u32,
