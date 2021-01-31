@@ -27,6 +27,7 @@ impl<'ttf, 'r> Assets<'ttf, 'r> {
     pub fn new(
         texture_creator: &'r TextureCreator<WindowContext>,
         ttf_context: &'ttf sdl2::ttf::Sdl2TtfContext,
+        sounds: SoundAssets,
     ) -> Assets<'ttf, 'r> {
         let load_tex = |path: &str| {
             let mut tex = texture_creator
@@ -36,6 +37,19 @@ impl<'ttf, 'r> Assets<'ttf, 'r> {
             tex
         };
 
+        Assets {
+            font: ttf_context
+                .load_font("resources/yoster.ttf", 15)
+                .expect("Could not find font!"),
+            menu_background: load_tex("resources/menu_background.png"),
+            end_background: load_tex("resources/endscreen.png"),
+            sounds: SoundAssets::new(),
+        }
+    }
+}
+
+impl SoundAssets {
+    pub fn new() -> Self {
         let mut sounds = SoundAssets {
             achtung_blitzkrieg_engine: Chunk::from_file(
                 "resources/audio/achtungblitzkrieg-engine.ogg",
@@ -59,13 +73,6 @@ impl<'ttf, 'r> Assets<'ttf, 'r> {
         sounds.howdy_cowboy_engine.set_volume(30);
         sounds.suka_blyat_engine.set_volume(30);
 
-        Assets {
-            font: ttf_context
-                .load_font("resources/yoster.ttf", 15)
-                .expect("Could not find font!"),
-            menu_background: load_tex("resources/menu_background.png"),
-            end_background: load_tex("resources/endscreen.png"),
-            sounds,
-        }
+        sounds
     }
 }

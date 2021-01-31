@@ -1,8 +1,8 @@
+use crate::surface::Sdl2Surface;
 use luminance::context::GraphicsContext;
 use luminance::shader::{BuiltProgram, Program, UniformInterface};
 use luminance::vertex::Semantics;
 use luminance_gl::GL33;
-use crate::surface::Sdl2Surface;
 
 pub fn compile_shader<Sem, Out, Uni>(
     surface: &mut Sdl2Surface,
@@ -13,11 +13,12 @@ where
     Sem: Semantics,
     Uni: UniformInterface<GL33>,
 {
-    let result = surface
-        .new_shader_program()
-        .from_strings(vertex_shader, None, None, fragment_shader);
+    let result =
+        surface
+            .new_shader_program()
+            .from_strings(vertex_shader, None, None, fragment_shader);
     match result {
-        Ok(BuiltProgram { program, warnings}) => {
+        Ok(BuiltProgram { program, warnings }) => {
             for warning in warnings {
                 eprintln!("{}", warning);
             }

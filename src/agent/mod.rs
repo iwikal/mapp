@@ -254,12 +254,11 @@ pub fn gameloop(
 
                         // Start rendering things with the default render state provided by
                         // luminance.
-                        let render_state = RenderState::default()
-                            .set_blending(Blending {
-                                equation: Equation::Additive,
-                                src: Factor::SrcAlpha,
-                                dst: Factor::SrcAlphaComplement,
-                            });
+                        let render_state = RenderState::default().set_blending(Blending {
+                            equation: Equation::Additive,
+                            src: Factor::SrcAlpha,
+                            dst: Factor::SrcAlphaComplement,
+                        });
                         rdr_gate.render(&render_state, |mut tess_gate| {
                             tess_gate.render(&sprite_tess)
                         })

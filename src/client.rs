@@ -16,7 +16,7 @@ use sdl2::render::BlendMode;
 use sdl2::render::Canvas;
 use sdl2::video::Window;
 
-use assets::Assets;
+use assets::{Assets, SoundAssets};
 use libplen::constants;
 use libplen::gamestate;
 use libplen::level::{self, Level};
@@ -96,7 +96,10 @@ pub fn main() -> Result<(), String> {
         video_subsystem.text_input().start();
         menu_state.name = name;
 
-        let sounds = {
+        let sound_assets;
+        let player_type;
+
+        {
             let window = video_subsystem
                 .window(
                     "MAPP",
@@ -115,7 +118,9 @@ pub fn main() -> Result<(), String> {
             canvas.set_blend_mode(BlendMode::Blend);
             let texture_creator = canvas.texture_creator();
 
-            let mut assets = Assets::new(&texture_creator, &ttf_context);
+            let ttf_context = sdl2::ttf::init().expect("Could not initialize SDL ttf");
+
+            let mut assets = Assets::new(&texture_creator, &ttf_context, SoundAssets::new());
 
             'menuloop: loop {
                 let mut current_mouse_click: Option<(i32, i32)> = None;
@@ -126,9 +131,6 @@ pub fn main() -> Result<(), String> {
                         Event::KeyDown {
                             keycode: Some(kc), ..
                         } => match kc {
-                            Keycode::Return => {
-                                break 'menuloop;
-                            }
                             Keycode::Backspace => {
                                 menu_state.name.pop();
                             }
@@ -167,29 +169,39 @@ pub fn main() -> Result<(), String> {
                 menu_state
                     .draw(&mut canvas, &assets, my_player_type)
                     .unwrap();
+
+                if let Some(player) = menu_state.game_state.get_player_by_id(my_id) {
+                    player_type = player.player_type;
+                    break 'menuloop;
+                }
             }
 
-            assets.sounds
+            sound_assets = assets.sounds
         };
 
         video_subsystem.text_input().stop();
 
         name = menu_state.name.clone();
 
-        {
-            let (result, returned_sdl) = agent::gameloop(
-                sdl.take().unwrap(),
-                &mut event_pump,
-                &mut reader,
-                &sounds,
-                my_id,
-            );
-            sdl = Some(returned_sdl);
+        match player_type {
+            libplen::player::PlayerType::Agent => {
+                let (result, returned_sdl) = agent::gameloop(
+                    sdl.take().unwrap(),
+                    &mut event_pump,
+                    &mut reader,
+                    &sound_assets,
+                    my_id,
+                );
+                sdl = Some(returned_sdl);
 
-            match result {
-                StateResult::Quit => break 'mainloop,
-                StateResult::Continue => continue,
-                StateResult::GotoNext => (),
+                match result {
+                    StateResult::Quit => break 'mainloop,
+                    StateResult::Continue => continue,
+                    StateResult::GotoNext => (),
+                }
+            }
+            libplen::player::PlayerType::Dispatcher => {
+                todo!();
             }
         }
     }

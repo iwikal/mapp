@@ -1,14 +1,14 @@
 use luminance::context::GraphicsContext;
 use luminance::face_culling::{FaceCulling, FaceCullingMode};
 use luminance::pipeline::{Pipeline, PipelineError};
-use luminance::shading_gate::ShadingGate;
 use luminance::render_state::RenderState;
 use luminance::shader::{Program, Uniform};
+use luminance::shading_gate::ShadingGate;
 use luminance::tess::{Mode, Tess};
-use luminance_derive::{Semantics, Vertex, UniformInterface};
+use luminance_derive::{Semantics, UniformInterface, Vertex};
 use luminance_gl::GL33;
 
-use ultraviolet::{Mat3, Vec3, Mat4};
+use ultraviolet::{Mat3, Mat4, Vec3};
 
 use super::shader::compile_shader;
 use super::surface::Sdl2Surface;
@@ -78,14 +78,11 @@ impl RoomModel {
             int.set(&uni.view, view_mat.into());
             int.set(&uni.projection, projection_mat.into());
 
-            let render_state = RenderState::default()
-                .set_face_culling(FaceCulling {
-                    mode: FaceCullingMode::Back,
-                    ..Default::default()
-                });
-            rdr_gate.render(&render_state, |mut tess_gate| {
-                tess_gate.render(&*wall_tess)
-            })
+            let render_state = RenderState::default().set_face_culling(FaceCulling {
+                mode: FaceCullingMode::Back,
+                ..Default::default()
+            });
+            rdr_gate.render(&render_state, |mut tess_gate| tess_gate.render(&*wall_tess))
         })
     }
 }

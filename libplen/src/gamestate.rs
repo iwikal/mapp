@@ -15,8 +15,11 @@ pub struct GameState {
 
 impl GameState {
     pub fn new() -> GameState {
+        let mut teams = HashMap::new();
+        teams.insert(0, player::Team::new(0, "RED".to_string(), (255, 0, 0)));
+        teams.insert(1, player::Team::new(1, "BLUE".to_string(), (0, 0, 255)));
         GameState {
-            teams: HashMap::new(),
+            teams,
             game_started: false,
         }
     }
@@ -46,7 +49,7 @@ impl GameState {
 
     pub fn get_mut_player_by_id(&mut self, id: u64) -> Option<&mut player::Player> {
         for (_, team) in &mut self.teams {
-            if id == team.dispatcher.as_mut().unwrap().id {
+            if Some(id) == team.dispatcher.as_ref().map(|player| player.id) {
                 return Some(team.dispatcher.as_mut().unwrap());
             }
             for agent in &mut team.agents {
