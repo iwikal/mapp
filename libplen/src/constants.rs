@@ -11,7 +11,7 @@ pub const WINDOW_SIZE: f32 = 700.;
 pub const NAME_POS: (f32, f32) = (50., 100.);
 pub const STATUS_TEXT_POS: (f32, f32) = (50., 200.);
 
-pub const PLAYER_SPEED: f32 = 50.;
+pub const PLAYER_SPEED: f32 = 1.5;
 
 pub const ROOM_WIDTH: f32 = 3.;
 pub const ROOM_LENGTH: f32 = 3.;

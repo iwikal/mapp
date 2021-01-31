@@ -2,6 +2,7 @@ use serde_derive::{Serialize, Deserialize};
 use crate::constants::PLAYER_SPEED;
 use crate::math::{Vec2, vec2};
 use crate::messages::ClientInput;
+use ultraviolet::Rotor2;
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug)]
 pub enum PlayerType {
@@ -14,6 +15,7 @@ pub struct Player {
     pub id: u64,
     pub name: String,
     pub position: Vec2,
+    pub rotation: f32,
     pub player_type: PlayerType,
 }
 
@@ -28,13 +30,21 @@ impl Player {
             id,
             name,
             position: vec2(0., 0.),
+            rotation: 0.,
             player_type,
         }
     }
 
     pub fn update(&mut self, delta_time: f32, input: &ClientInput) {
-        self.position.x += delta_time * input.x_input * PLAYER_SPEED;
-        self.position.y += delta_time * input.y_input * PLAYER_SPEED;
+        let &ClientInput {
+            rotation,
+            x_input,
+            y_input,
+        } = input;
+        self.rotation -= rotation; // No delta time factor here!
+        let input_movement = vec2(x_input, y_input)
+            .rotated_by(Rotor2::from_angle(-self.rotation));
+        self.position += input_movement * PLAYER_SPEED * delta_time;
     }
 }
 
@@ -57,6 +67,7 @@ impl Team {
             agents: vec!()
         }
     }
+
     pub fn try_add_player(&mut self, player_id: u64, name: String, player_type: PlayerType) {
         match player_type {
             PlayerType::Dispatcher => {

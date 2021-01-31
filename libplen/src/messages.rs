@@ -86,6 +86,7 @@ pub enum ServerMessage {
 
 #[derive(Serialize, Deserialize)]
 pub struct ClientInput {
+    pub rotation: f32,
     pub x_input: f32,
     pub y_input: f32,
 }
@@ -93,6 +94,7 @@ pub struct ClientInput {
 impl ClientInput {
     pub fn new() -> Self {
         ClientInput {
+            rotation: 0.,
             x_input: 0.,
             y_input: 0.,
         }

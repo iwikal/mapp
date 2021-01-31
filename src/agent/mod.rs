@@ -63,10 +63,11 @@ impl AgentState {
         sounds: &SoundAssets,
         server_reader: &mut MessageReader,
         keyboard_state: &sdl2::keyboard::KeyboardState,
+        mouse_state: &sdl2::mouse::RelativeMouseState,
     ) -> StateResult {
         let elapsed = self.last_time.elapsed();
         self.last_time = Instant::now();
-        let dt_duration = std::time::Duration::from_millis(1000 / 60);
+        let dt_duration = std::time::Duration::from_millis(1000 / 60 - 1);
         if elapsed < dt_duration {
             std::thread::sleep(dt_duration - elapsed);
         }
@@ -111,6 +112,7 @@ impl AgentState {
         if keyboard_state.is_scancode_pressed(Scancode::D) {
             input.x_input += 1.0;
         }
+        input.rotation = mouse_state.x() as f32 * 0.001;
 
         self.map
             .update(elapsed.as_secs_f32(), &self.game_state, self.my_id);
@@ -187,8 +189,6 @@ pub fn gameloop(
 
     let mut flower_sprite = sprite::load_sprite(&mut surface, "resources/flower.png");
 
-    let mut rotation = 0_f32;
-
     loop {
         for event in event_pump.poll_iter() {
             match event {
@@ -204,9 +204,6 @@ pub fn gameloop(
                     win_event: WindowEvent::SizeChanged(..),
                     ..
                 } => resize = true,
-                Event::MouseMotion { xrel, .. } => {
-                    rotation -= xrel as f32 * 0.001;
-                }
                 _ => {}
             }
         }
@@ -217,13 +214,21 @@ pub fn gameloop(
             resize = false;
         }
 
-        agent_state.update(sounds, server_reader, &event_pump.keyboard_state());
+        let mouse_state = event_pump.relative_mouse_state();
+        let keyboard_state = event_pump.keyboard_state();
+
+        agent_state.update(
+            sounds,
+            server_reader,
+            &keyboard_state,
+            &mouse_state,
+        );
         glyph_brush.process_queued(&mut surface);
 
-        // let myself = agent_state.myself();
+        let myself = agent_state.myself();
 
-        let my_pos = Vec3::new(0., 0., 1.); // FIXME
-        let view = Mat4::from_rotation_y(rotation) * Mat4::from_translation(-my_pos);
+        let my_pos = Vec3::new(myself.position.x, 0., myself.position.y); // FIXME
+        let view = Mat4::from_rotation_y(myself.rotation) * Mat4::from_translation(-my_pos);
 
         // Create a new dynamic pipeline that will render to the back buffer and must clear it
         // with pitch black prior to do any render to it.

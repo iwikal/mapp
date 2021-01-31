@@ -15,13 +15,13 @@ pub struct GameState {
 
 impl GameState {
     pub fn new() -> GameState {
-        let mut teams = HashMap::new();
-        teams.insert(0, player::Team::new(0, "RED".to_string(), (255, 0, 0)));
-        teams.insert(1, player::Team::new(1, "BLUE".to_string(), (0, 0, 255)));
-        GameState {
-            teams,
+        let mut state = GameState {
+            teams: HashMap::new(),
             game_started: false,
-        }
+        };
+        state.add_team("RED".to_string(), (255, 0, 0));
+        state.add_team("BLUE".to_string(), (0, 0, 255));
+        state
     }
 
     pub fn update(&mut self, delta: f32) {
@@ -85,5 +85,10 @@ impl GameState {
                 return;
             }
         }
+    }
+
+    pub fn add_team(&mut self, name: String, color: (u8, u8, u8)) {
+        let id = self.teams.len() as _;
+        self.teams.insert(id, player::Team::new(id, name, color));
     }
 }
