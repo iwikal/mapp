@@ -57,6 +57,8 @@ impl fmt::Display for Sdl2SurfaceError {
 ///
 /// [luminance]: https://crates.io/crates/luminance
 pub struct Sdl2Surface {
+    sdl: sdl2::Sdl,
+    window: sdl2::video::Window,
     gl: GL33,
     // This struct needs to stay alive until we are done with OpenGL stuff.
     _gl_context: sdl2::video::GLContext,
@@ -83,10 +85,24 @@ impl Sdl2Surface {
     /// })
     ///   .expect("failed to build window");
     /// ```
-    pub fn build_with(
-        window: &sdl2::video::Window,
-        video_system: &sdl2::VideoSubsystem,
-    ) -> Result<Self, Sdl2SurfaceError> {
+    pub fn build_with<WB>(sdl: sdl2::Sdl, window_builder: WB) -> Result<Self, Sdl2SurfaceError>
+    where
+        WB: FnOnce(&sdl2::VideoSubsystem) -> sdl2::video::WindowBuilder,
+    {
+        let video_system = sdl.video().map_err(Sdl2SurfaceError::VideoInitError)?;
+
+        let gl_attr = video_system.gl_attr();
+
+        gl_attr.set_context_profile(sdl2::video::GLProfile::Core);
+        gl_attr.set_context_flags().forward_compatible().set();
+        gl_attr.set_context_major_version(3);
+        gl_attr.set_context_minor_version(3);
+
+        let window = window_builder(&video_system)
+            .opengl()
+            .build()
+            .map_err(Sdl2SurfaceError::WindowCreationFailed)?;
+
         let _gl_context = window
             .gl_create_context()
             .map_err(Sdl2SurfaceError::GlContextInitFailed)?;
@@ -94,10 +110,39 @@ impl Sdl2Surface {
         gl::load_with(|s| video_system.gl_get_proc_address(s) as *const c_void);
 
         let gl = GL33::new().map_err(Sdl2SurfaceError::GraphicsStateError)?;
-
-        let surface = Sdl2Surface { gl, _gl_context };
+        let surface = Sdl2Surface {
+            sdl,
+            window,
+            gl,
+            _gl_context,
+        };
 
         Ok(surface)
+    }
+
+    /// The entry point to most of the SDL2 API.
+    pub fn sdl(&self) -> &sdl2::Sdl {
+        &self.sdl
+    }
+
+    /// Borrow the underlying SDL2 window of this surface.
+    pub fn window(&self) -> &sdl2::video::Window {
+        &self.window
+    }
+
+    /// Mutably borrow the underlying SDL2 window of this surface.
+    pub fn window_mut(&mut self) -> &mut sdl2::video::Window {
+        &mut self.window
+    }
+
+    /// Get the back buffer.
+    pub fn back_buffer(&mut self) -> Result<Framebuffer<GL33, Dim2, (), ()>, FramebufferError> {
+        let (w, h) = self.window.drawable_size();
+        Framebuffer::back_buffer(self, [w, h])
+    }
+
+    pub fn into_parts(self) -> (sdl2::Sdl, sdl2::video::Window, GL33) {
+        (self.sdl, self.window, self.gl)
     }
 }
 

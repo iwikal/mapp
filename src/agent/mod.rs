@@ -124,23 +124,35 @@ impl AgentState {
 }
 
 pub fn gameloop(
-    surface: &mut surface::Sdl2Surface,
-    window: &mut sdl2::video::Window,
+    sdl: sdl2::Sdl,
     event_pump: &mut EventPump,
     server_reader: &mut MessageReader,
+    sounds: &SoundAssets,
     my_id: u64,
-) -> StateResult {
-    let (w, h) = window.drawable_size();
-    let mut back_buffer =
-        Framebuffer::back_buffer(surface, [w, h]).expect("Could not get back buffer");
+) -> (StateResult, sdl2::Sdl) {
+    sdl.mouse().set_relative_mouse_mode(true);
+
+    let mut surface = surface::Sdl2Surface::build_with(sdl, |video| {
+        let mut wb = video.window(
+            "MAPP",
+            constants::WINDOW_SIZE as u32,
+            constants::WINDOW_SIZE as u32,
+        );
+        wb.fullscreen_desktop();
+        wb.resizable();
+        wb
+    })
+    .expect("Could not create rendering surface");
+
+    let mut back_buffer = surface.back_buffer().expect("Could not get back buffer");
 
     let mut sprite_program = {
         let vs = include_str!("../../shaders/sprite.vert");
         let fs = include_str!("../../shaders/sprite.frag");
-        shader::compile_shader::<(), (), sprite::SpriteInterface>(surface, vs, fs)
+        shader::compile_shader::<(), (), sprite::SpriteInterface>(&mut surface, vs, fs)
     };
 
-    let mut room_model = room::RoomModel::new(surface);
+    let mut room_model = room::RoomModel::new(&mut surface);
 
     let sprite_tess = surface
         .new_tess()
@@ -152,22 +164,22 @@ pub fn gameloop(
     let mut glyph_brush = {
         let ttf = include_bytes!("../../resources/yoster.ttf");
         let font = ab_glyph::FontArc::try_from_slice(ttf).expect("Could not load font");
-        GlyphBrushBuilder::using_font(font).build(surface)
+        GlyphBrushBuilder::using_font(font).build(&mut surface)
     };
 
     let agent_state = &mut AgentState::new(my_id);
 
-    fn make_projection_matrix(window: &sdl2::video::Window) -> Mat4 {
-        let (width, height) = window.size();
+    fn make_projection_matrix(surface: &surface::Sdl2Surface) -> Mat4 {
+        let (width, height) = surface.window().size();
         let aspect_ratio = width as f32 / height as f32;
         let fov = 60_f32.to_radians();
         ultraviolet::projection::perspective_gl(fov, aspect_ratio, 0.01, 100.0)
     }
 
-    let mut projection = make_projection_matrix(window);
+    let mut projection = make_projection_matrix(&surface);
     let mut resize = false;
 
-    let mut flower_sprite = sprite::load_sprite(surface, "resources/flower.png");
+    let mut flower_sprite = sprite::load_sprite(&mut surface, "resources/flower.png");
 
     loop {
         for event in event_pump.poll_iter() {
@@ -177,7 +189,8 @@ pub fn gameloop(
                     ..
                 }
                 | Event::Quit { .. } => {
-                    return StateResult::Quit;
+                    let (sdl, ..) = surface.into_parts();
+                    return (StateResult::Quit, sdl);
                 }
                 Event::Window {
                     win_event: WindowEvent::SizeChanged(..),
@@ -188,10 +201,9 @@ pub fn gameloop(
         }
 
         if resize {
-            let (w, h) = window.drawable_size();
-            back_buffer =
-                Framebuffer::back_buffer(surface, [w, h]).expect("Could not get back buffer");
-            projection = make_projection_matrix(window);
+            let (w, h) = surface.window().drawable_size();
+            back_buffer = surface.back_buffer().unwrap();
+            projection = make_projection_matrix(&surface);
             resize = false;
         }
 
@@ -199,7 +211,7 @@ pub fn gameloop(
         let keyboard_state = event_pump.keyboard_state();
 
         agent_state.update(server_reader, &keyboard_state, &mouse_state);
-        glyph_brush.process_queued(surface);
+        glyph_brush.process_queued(&mut surface);
 
         let myself = agent_state.myself();
 
@@ -265,6 +277,6 @@ pub fn gameloop(
             .into_result()
             .expect("Failed to render");
 
-        window.gl_swap_window();
+        surface.window().gl_swap_window();
     }
 }
