@@ -237,17 +237,21 @@ fn wall_tess(surface: &mut impl GraphicsContext<Backend = GL33>) -> Tess<GL33, W
 
         for x in 0..2 {
             for y in 0..2 {
+                let (x, y) = (x as f32, y as f32);
+
                 let pos = rot_matrix
-                    * (Vec3::new(x as f32, y as f32, 1.) - Vec3::new(0.5, 0., 0.5))
+                    * (Vec3::new(x, y, 1.) - Vec3::new(0.5, 0., 0.5))
                     * Vec3::new(
                         constants::ROOM_WIDTH,
                         constants::CEILING_HEIGHT,
                         constants::ROOM_LENGTH,
                     );
 
+                let uv = Vec2::new(pos.x + pos.z, pos.y);
+
                 vertices.push(WallVertex {
                     position: WallVertexPosition::new(pos.into()),
-                    uv: WallVertexUv::new([0., 0.]),
+                    uv: WallVertexUv::new(uv.into()),
                 });
             }
         }
