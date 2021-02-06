@@ -45,57 +45,55 @@ struct WallMaterial {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Semantics)]
-pub enum DoorSemantics {
-    #[sem(name = "position", repr = "[f32; 3]", wrapper = "DoorVertexPosition")]
+pub enum HoleSemantics {
+    #[sem(name = "position", repr = "[f32; 3]", wrapper = "HoleVertexPosition")]
     Position,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Vertex)]
-#[vertex(sem = "DoorSemantics")]
-struct DoorVertex {
-    position: DoorVertexPosition,
+#[vertex(sem = "HoleSemantics")]
+struct HoleVertex {
+    position: HoleVertexPosition,
 }
 
 #[derive(UniformInterface)]
-struct DoorInterface {
+struct HoleInterface {
     pub model: Uniform<[[f32; 4]; 4]>,
     pub view: Uniform<[[f32; 4]; 4]>,
     pub projection: Uniform<[[f32; 4]; 4]>,
 }
 
-struct DoorMaterial {
-    shader: Program<GL33, DoorSemantics, (), DoorInterface>,
+struct HoleMaterial {
+    shader: Program<GL33, HoleSemantics, (), HoleInterface>,
 }
 
 pub struct RoomModel {
     wall_tess: Tess<GL33, WallVertex, u8>,
+    doorway_tess: Tess<GL33, WallVertex, u8>,
     wall_material: WallMaterial,
-    door_tess: Tess<GL33, DoorVertex, u8>,
-    door_material: DoorMaterial,
+    hole_tess: Tess<GL33, HoleVertex, u8>,
+    hole_material: HoleMaterial,
 }
 
 impl RoomModel {
     pub fn new(surface: &mut Sdl2Surface) -> Self {
-        let wall_shader = compile_shader(
-            surface,
-            include_str!("../../shaders/wall.vert"),
-            include_str!("../../shaders/wall.frag"),
-        );
-
-        let door_shader = compile_shader(
-            surface,
-            include_str!("../../shaders/door.vert"),
-            include_str!("../../shaders/door.frag"),
-        );
-
         Self {
             wall_tess: wall_tess(surface),
-            door_tess: door_tess(surface),
+            doorway_tess: doorway_tess(surface),
+            hole_tess: hole_tess(surface),
             wall_material: WallMaterial {
-                shader: wall_shader,
+                shader: compile_shader(
+                    surface,
+                    include_str!("../../shaders/wall.vert"),
+                    include_str!("../../shaders/wall.frag"),
+                ),
             },
-            door_material: DoorMaterial {
-                shader: door_shader,
+            hole_material: HoleMaterial {
+                shader: compile_shader(
+                    surface,
+                    include_str!("../../shaders/hole.vert"),
+                    include_str!("../../shaders/hole.frag"),
+                ),
             },
         }
     }
@@ -115,7 +113,6 @@ impl RoomModel {
         unsafe {
             gl::Enable(gl::STENCIL_TEST);
             gl::StencilFunc(gl::EQUAL, 0, 0xFF);
-            gl::StencilOp(gl::KEEP, gl::KEEP, gl::INCR);
         };
 
         for (column, rooms) in rooms.into_iter().enumerate() {
@@ -156,12 +153,13 @@ impl RoomModel {
     ) -> Result<(), PipelineError> {
         let Self {
             wall_tess,
-            door_tess,
+            doorway_tess,
+            hole_tess,
             wall_material: WallMaterial {
                 shader: wall_shader,
             },
-            door_material: DoorMaterial {
-                shader: door_shader,
+            hole_material: HoleMaterial {
+                shader: hole_shader,
             },
         } = self;
 
@@ -171,8 +169,8 @@ impl RoomModel {
         let translation = Vec3::new(pos.x, 0., pos.y);
         let room_model_mat = Mat4::from_translation(translation);
 
-        for &door_coord in doors {
-            let (rotation, translation) = level::doorway_transform(room_coord, door_coord);
+        let door_transform = |offset: (i8, i8)| -> Mat4 {
+            let (rotation, translation) = level::doorway_transform(room_coord, offset);
             let rotation = {
                 let &[column_a, column_b] = rotation.as_component_array();
                 Mat4::new(
@@ -184,10 +182,33 @@ impl RoomModel {
             };
 
             let translation = Vec3::new(translation.x, 0., translation.y);
-            let door_model_mat = room_model_mat.translated(&translation) * rotation;
+            room_model_mat.translated(&translation) * rotation
+        };
 
-            shd_gate.shade(door_shader, |mut int, uni, mut rdr_gate| {
-                int.set(&uni.model, door_model_mat.into());
+        let render_state = RenderState::default().set_face_culling(FaceCulling {
+            mode: FaceCullingMode::Back,
+            ..Default::default()
+        });
+
+        for &offset in doors {
+            let model_mat = door_transform(offset);
+            shd_gate.shade(wall_shader, |mut int, uni, mut rdr_gate| {
+                int.set(&uni.model, model_mat.into());
+                int.set(&uni.view, view_mat.into());
+                int.set(&uni.projection, projection_mat.into());
+
+                rdr_gate.render(&render_state, |mut tess_gate| tess_gate.render(&*doorway_tess))
+            })?;
+        }
+
+        unsafe {
+            gl::StencilOp(gl::KEEP, gl::KEEP, gl::INCR);
+        }
+
+        for &offset in doors {
+            let model_mat = door_transform(offset);
+            shd_gate.shade(hole_shader, |mut int, uni, mut rdr_gate| {
+                int.set(&uni.model, model_mat.into());
                 int.set(&uni.view, view_mat.into());
                 int.set(&uni.projection, projection_mat.into());
 
@@ -197,7 +218,7 @@ impl RoomModel {
                         mode: FaceCullingMode::Back,
                         ..Default::default()
                     });
-                rdr_gate.render(&render_state, |mut tess_gate| tess_gate.render(&*door_tess))
+                rdr_gate.render(&render_state, |mut tess_gate| tess_gate.render(&*hole_tess))
             })?;
         }
 
@@ -206,14 +227,11 @@ impl RoomModel {
             int.set(&uni.view, view_mat.into());
             int.set(&uni.projection, projection_mat.into());
 
-            let render_state = RenderState::default().set_face_culling(FaceCulling {
-                mode: FaceCullingMode::Back,
-                ..Default::default()
-            });
             rdr_gate.render(&render_state, |mut tess_gate| tess_gate.render(&*wall_tess))
         })?;
 
         unsafe {
+            gl::StencilOp(gl::KEEP, gl::KEEP, gl::KEEP);
             gl::Clear(gl::STENCIL_BUFFER_BIT);
         }
 
@@ -275,20 +293,64 @@ fn wall_tess(surface: &mut impl GraphicsContext<Backend = GL33>) -> Tess<GL33, W
         .unwrap()
 }
 
-fn door_tess(surface: &mut Sdl2Surface) -> Tess<GL33, DoorVertex, u8> {
+fn hole_tess(surface: &mut Sdl2Surface) -> Tess<GL33, HoleVertex, u8> {
     let mut vertices = vec![];
 
     for x in 0..2 {
         for y in 0..2 {
             let x = (x * 2 - 1) as f32 * constants::DOOR_WIDTH / 2.;
             let y = y as f32 * constants::DOOR_HEIGHT;
-            vertices.push(DoorVertex {
-                position: DoorVertexPosition::new([x, y, 0.]),
+            vertices.push(HoleVertex {
+                position: HoleVertexPosition::new([x, y, 0.]),
             });
         }
     }
 
     let indices = vec![0, 1, 2, 3, 2, 1];
+
+    surface
+        .new_tess()
+        .set_mode(Mode::Triangle)
+        .set_vertices(vertices)
+        .set_indices(indices)
+        .build()
+        .unwrap()
+}
+
+fn doorway_tess(surface: &mut Sdl2Surface) -> Tess<GL33, WallVertex, u8> {
+    let mut vertices: Vec<WallVertex> = vec![];
+    let mut indices: Vec<u8> = vec![];
+
+    for i in 0..2 {
+        let index = vertices.len() as u8;
+
+        for y in 0..2 {
+            for z in 0..2 {
+                let (y, z) = (y as f32, z as f32);
+
+                let pos = (Vec3::new(1., y, z) - Vec3::new(0.5, 0., 0.))
+                    * Vec3::new(
+                        constants::DOOR_WIDTH,
+                        constants::DOOR_HEIGHT,
+                        constants::DOORWAY_LENGTH,
+                    );
+
+                let uv = Vec2::new(pos.x + pos.z, pos.y);
+
+                vertices.push(WallVertex {
+                    position: WallVertexPosition::new(pos.into()),
+                    uv: WallVertexUv::new(uv.into()),
+                });
+            }
+        }
+
+        indices.push(index + 0);
+        indices.push(index + 1);
+        indices.push(index + 2);
+        indices.push(index + 3);
+        indices.push(index + 2);
+        indices.push(index + 1);
+    }
 
     surface
         .new_tess()
