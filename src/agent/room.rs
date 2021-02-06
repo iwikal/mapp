@@ -1,13 +1,17 @@
 use luminance::context::GraphicsContext;
 use luminance::depth_test::DepthWrite;
 use luminance::face_culling::{FaceCulling, FaceCullingMode};
-use luminance::pipeline::{Pipeline, PipelineError};
+use luminance::pipeline::{Pipeline, PipelineError, TextureBinding};
+use luminance::pixel::{NormRGBA8UI, NormUnsigned};
 use luminance::render_state::RenderState;
 use luminance::shader::{Program, Uniform};
 use luminance::shading_gate::ShadingGate;
 use luminance::tess::{Mode, Tess};
+use luminance::texture::{Dim2, Texture};
 use luminance_derive::{Semantics, UniformInterface, Vertex};
 use luminance_gl::GL33;
+
+use super::sprite::load_texture;
 
 use ultraviolet::{Mat3, Mat4, Vec2, Vec3, Vec4};
 
@@ -38,10 +42,12 @@ pub struct WallInterface {
     pub model: Uniform<[[f32; 4]; 4]>,
     pub view: Uniform<[[f32; 4]; 4]>,
     pub projection: Uniform<[[f32; 4]; 4]>,
+    pub albedo: Uniform<TextureBinding<Dim2, NormUnsigned>>,
 }
 
 struct WallMaterial {
     shader: Program<GL33, WallSemantics, (), WallInterface>,
+    albedo: Texture<GL33, Dim2, NormRGBA8UI>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Semantics)]
@@ -87,6 +93,7 @@ impl RoomModel {
                     include_str!("../../shaders/wall.vert"),
                     include_str!("../../shaders/wall.frag"),
                 ),
+                albedo: load_texture(surface, "resources/bricks/Bricks025_1K_Color.png"),
             },
             hole_material: HoleMaterial {
                 shader: compile_shader(
@@ -112,13 +119,14 @@ impl RoomModel {
     {
         unsafe {
             gl::Enable(gl::STENCIL_TEST);
-            gl::StencilFunc(gl::EQUAL, 0, 0xFF);
-        };
+            gl::StencilFunc(gl::NOTEQUAL, 1, !0);
+            gl::StencilOp(gl::INCR, gl::KEEP, gl::INCR);
+        }
 
         for (column, rooms) in rooms.into_iter().enumerate() {
             for (row, room) in rooms.into_iter().enumerate() {
                 match room {
-                    crate::level::Room::FullRoom(doorways) => {
+                    level::Room::Corridor(doorways) | level::Room::FullRoom(doorways) => {
                         self.draw_one(
                             pipeline,
                             shd_gate,
@@ -128,9 +136,7 @@ impl RoomModel {
                             doorways,
                         )?;
                     }
-                    _ => {
-                        // TODO render hallways
-                    }
+                    level::Room::Empty => {}
                 }
             }
         }
@@ -144,7 +150,7 @@ impl RoomModel {
 
     fn draw_one(
         &mut self,
-        _pipeline: &mut Pipeline<GL33>,
+        pipeline: &mut Pipeline<GL33>,
         shd_gate: &mut ShadingGate<GL33>,
         view_mat: Mat4,
         projection_mat: Mat4,
@@ -155,9 +161,11 @@ impl RoomModel {
             wall_tess,
             doorway_tess,
             hole_tess,
-            wall_material: WallMaterial {
-                shader: wall_shader,
-            },
+            wall_material:
+                WallMaterial {
+                    shader: wall_shader,
+                    albedo: wall_albedo,
+                },
             hole_material: HoleMaterial {
                 shader: hole_shader,
             },
@@ -185,26 +193,6 @@ impl RoomModel {
             room_model_mat.translated(&translation) * rotation
         };
 
-        let render_state = RenderState::default().set_face_culling(FaceCulling {
-            mode: FaceCullingMode::Back,
-            ..Default::default()
-        });
-
-        for &offset in doors {
-            let model_mat = door_transform(offset);
-            shd_gate.shade(wall_shader, |mut int, uni, mut rdr_gate| {
-                int.set(&uni.model, model_mat.into());
-                int.set(&uni.view, view_mat.into());
-                int.set(&uni.projection, projection_mat.into());
-
-                rdr_gate.render(&render_state, |mut tess_gate| tess_gate.render(&*doorway_tess))
-            })?;
-        }
-
-        unsafe {
-            gl::StencilOp(gl::KEEP, gl::KEEP, gl::INCR);
-        }
-
         for &offset in doors {
             let model_mat = door_transform(offset);
             shd_gate.shade(hole_shader, |mut int, uni, mut rdr_gate| {
@@ -222,16 +210,37 @@ impl RoomModel {
             })?;
         }
 
+        let render_state = RenderState::default().set_face_culling(FaceCulling {
+            mode: FaceCullingMode::Back,
+            ..Default::default()
+        });
+
+        let wall_albedo = pipeline.bind_texture(wall_albedo)?;
+
         shd_gate.shade(wall_shader, |mut int, uni, mut rdr_gate| {
             int.set(&uni.model, room_model_mat.into());
             int.set(&uni.view, view_mat.into());
             int.set(&uni.projection, projection_mat.into());
+            int.set(&uni.albedo, wall_albedo.binding());
 
             rdr_gate.render(&render_state, |mut tess_gate| tess_gate.render(&*wall_tess))
         })?;
 
+        for &offset in doors {
+            let model_mat = door_transform(offset);
+            shd_gate.shade(wall_shader, |mut int, uni, mut rdr_gate| {
+                int.set(&uni.model, model_mat.into());
+                int.set(&uni.view, view_mat.into());
+                int.set(&uni.projection, projection_mat.into());
+                int.set(&uni.albedo, wall_albedo.binding());
+
+                rdr_gate.render(&render_state, |mut tess_gate| {
+                    tess_gate.render(&*doorway_tess)
+                })
+            })?;
+        }
+
         unsafe {
-            gl::StencilOp(gl::KEEP, gl::KEEP, gl::KEEP);
             gl::Clear(gl::STENCIL_BUFFER_BIT);
         }
 
@@ -250,7 +259,9 @@ fn wall_tess(surface: &mut impl GraphicsContext<Backend = GL33>) -> Tess<GL33, W
     );
 
     let mut rot_matrix = Mat3::identity();
-    for _ in 0..4 {
+    for i in 0..4_i32 {
+        let flip_uv = (i / 2 * 2 - 1) as f32;
+
         let index = vertices.len() as u8;
 
         for x in 0..2 {
@@ -265,7 +276,7 @@ fn wall_tess(surface: &mut impl GraphicsContext<Backend = GL33>) -> Tess<GL33, W
                         constants::ROOM_LENGTH,
                     );
 
-                let uv = Vec2::new(pos.x + pos.z, pos.y);
+                let uv = Vec2::new((pos.x + pos.z) * flip_uv, -pos.y) * 0.5;
 
                 vertices.push(WallVertex {
                     position: WallVertexPosition::new(pos.into()),
@@ -321,7 +332,7 @@ fn doorway_tess(surface: &mut Sdl2Surface) -> Tess<GL33, WallVertex, u8> {
     let mut vertices: Vec<WallVertex> = vec![];
     let mut indices: Vec<u8> = vec![];
 
-    for i in 0..2 {
+    for _ in 0..2 {
         let index = vertices.len() as u8;
 
         for y in 0..2 {
@@ -335,7 +346,7 @@ fn doorway_tess(surface: &mut Sdl2Surface) -> Tess<GL33, WallVertex, u8> {
                         constants::DOORWAY_LENGTH,
                     );
 
-                let uv = Vec2::new(pos.x + pos.z, pos.y);
+                let uv = Vec2::new(pos.x + pos.z, -pos.y) * 0.5;
 
                 vertices.push(WallVertex {
                     position: WallVertexPosition::new(pos.into()),

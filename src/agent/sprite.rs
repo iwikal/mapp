@@ -4,7 +4,7 @@ use luminance::context::GraphicsContext;
 use luminance::pipeline::TextureBinding;
 use luminance::pixel::{NormRGBA8UI, NormUnsigned};
 use luminance::shader::Uniform;
-use luminance::texture::{Dim2, GenMipmaps, Sampler, Texture};
+use luminance::texture::{Dim2, GenMipmaps, MagFilter, MinFilter, Sampler, Texture, Wrap};
 use luminance_derive::UniformInterface;
 use luminance_gl::GL33;
 
@@ -19,24 +19,34 @@ pub struct SpriteInterface {
     pub projection: Uniform<[[f32; 4]; 4]>,
 }
 
-pub fn load_sprite(
+pub fn load_texture(
     surface: &mut impl GraphicsContext<Backend = GL33>,
     path: impl AsRef<Path>,
-) -> Sprite {
+) -> Texture<GL33, Dim2, NormRGBA8UI> {
     let image = sdl2::surface::Surface::from_file(path).unwrap();
     let (width, height) = image.size();
     let bytes = image.without_lock().unwrap();
 
     let sampler = Sampler {
-        mag_filter: luminance::texture::MagFilter::Nearest,
-        min_filter: luminance::texture::MinFilter::Nearest,
+        mag_filter: MagFilter::Nearest,
+        min_filter: MinFilter::Nearest,
+        wrap_r: Wrap::Repeat,
+        wrap_s: Wrap::Repeat,
+        wrap_t: Wrap::Repeat,
         ..Default::default()
     };
 
     let mut texture =
-        Texture::new(surface, [width, height], 0, sampler).expect("Failed to create texture");
+        Texture::new(surface, [width, height], 4, sampler).expect("Failed to create texture");
 
     texture.upload_raw(GenMipmaps::Yes, bytes).unwrap();
 
     texture
+}
+
+pub fn load_sprite(
+    surface: &mut impl GraphicsContext<Backend = GL33>,
+    path: impl AsRef<Path>,
+) -> Sprite {
+    load_texture(surface, path)
 }
