@@ -1,3 +1,4 @@
+use luminance::blending::{Blending, Equation, Factor};
 use luminance::context::GraphicsContext;
 use luminance::face_culling::{FaceCulling, FaceCullingMode};
 use luminance::pipeline::{Pipeline, PipelineError};
@@ -125,17 +126,14 @@ impl RoomModel {
         let translation = Vec3::new(pos.x, 0., pos.y);
         let room_model_mat = Mat4::from_translation(translation);
 
-        shd_gate.shade(wall_shader, |mut int, uni, mut rdr_gate| {
-            int.set(&uni.model, room_model_mat.into());
-            int.set(&uni.view, view_mat.into());
-            int.set(&uni.projection, projection_mat.into());
-
-            let render_state = RenderState::default().set_face_culling(FaceCulling {
-                mode: FaceCullingMode::Back,
-                ..Default::default()
-            });
-            rdr_gate.render(&render_state, |mut tess_gate| tess_gate.render(&*wall_tess))
-        })?;
+        unsafe {
+            gl::Clear(gl::STENCIL_BUFFER_BIT);
+            gl::DepthMask(gl::FALSE);
+            gl::ColorMask(gl::FALSE, gl::FALSE, gl::FALSE, gl::FALSE);
+            gl::Enable(gl::STENCIL_TEST);
+            gl::StencilFunc(gl::ALWAYS, 1, 0xFF);
+            gl::StencilOp(gl::KEEP, gl::KEEP, gl::REPLACE);
+        }
 
         for &door_coord in doors {
             let (rotation, translation) = level::doorway_transform(room_coord, door_coord);
@@ -163,6 +161,28 @@ impl RoomModel {
                 });
                 rdr_gate.render(&render_state, |mut tess_gate| tess_gate.render(&*door_tess))
             })?;
+        }
+
+        unsafe {
+            gl::DepthMask(gl::TRUE);
+            gl::ColorMask(gl::TRUE, gl::TRUE, gl::TRUE, gl::TRUE);
+            gl::StencilFunc(gl::NOTEQUAL, 1, 0xFF);
+        }
+
+        shd_gate.shade(wall_shader, |mut int, uni, mut rdr_gate| {
+            int.set(&uni.model, room_model_mat.into());
+            int.set(&uni.view, view_mat.into());
+            int.set(&uni.projection, projection_mat.into());
+
+            let render_state = RenderState::default().set_face_culling(FaceCulling {
+                mode: FaceCullingMode::Back,
+                ..Default::default()
+            });
+            rdr_gate.render(&render_state, |mut tess_gate| tess_gate.render(&*wall_tess))
+        })?;
+
+        unsafe {
+            gl::StencilOp(gl::KEEP, gl::KEEP, gl::KEEP);
         }
 
         Ok(())
@@ -227,7 +247,7 @@ fn door_tess(surface: &mut Sdl2Surface) -> Tess<GL33, DoorVertex, u8> {
             let x = (x * 2 - 1) as f32 * constants::DOOR_WIDTH / 2.;
             let y = y as f32 * constants::DOOR_HEIGHT;
             vertices.push(DoorVertex {
-                position: DoorVertexPosition::new([x, y, -0.01]),
+                position: DoorVertexPosition::new([x, y, 0.]),
             });
         }
     }

@@ -133,6 +133,7 @@ pub fn gameloop(
     sdl.mouse().set_relative_mouse_mode(true);
 
     let mut surface = surface::Sdl2Surface::build_with(sdl, |video| {
+        video.gl_attr().set_stencil_size(8);
         let mut wb = video.window(
             "MAPP",
             constants::WINDOW_SIZE as u32,
