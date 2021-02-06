@@ -58,7 +58,7 @@ impl Map {
                             let door_x = ((door_pos.x + SCREEN_PADDING) * scale) as i32;
                             let door_y = (screen_center.y + door_pos.y * scale) as i32;
 
-                            canvas.draw_line((rc_x, rc_y), (door_x, door_y),)?;
+                            canvas.draw_line((rc_x, rc_y), (door_x, door_y))?;
                         }
 
                         self.draw_doors(canvas, doors, (col, row), scale)?;

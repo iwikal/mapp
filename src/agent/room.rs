@@ -1,5 +1,5 @@
-use luminance::blending::{Blending, Equation, Factor};
 use luminance::context::GraphicsContext;
+use luminance::depth_test::DepthWrite;
 use luminance::face_culling::{FaceCulling, FaceCullingMode};
 use luminance::pipeline::{Pipeline, PipelineError};
 use luminance::render_state::RenderState;
@@ -128,8 +128,6 @@ impl RoomModel {
 
         unsafe {
             gl::Clear(gl::STENCIL_BUFFER_BIT);
-            gl::DepthMask(gl::FALSE);
-            gl::ColorMask(gl::FALSE, gl::FALSE, gl::FALSE, gl::FALSE);
             gl::Enable(gl::STENCIL_TEST);
             gl::StencilFunc(gl::ALWAYS, 1, 0xFF);
             gl::StencilOp(gl::KEEP, gl::KEEP, gl::REPLACE);
@@ -155,17 +153,17 @@ impl RoomModel {
                 int.set(&uni.view, view_mat.into());
                 int.set(&uni.projection, projection_mat.into());
 
-                let render_state = RenderState::default().set_face_culling(FaceCulling {
-                    mode: FaceCullingMode::Back,
-                    ..Default::default()
-                });
+                let render_state = RenderState::default()
+                    .set_depth_write(DepthWrite::Off)
+                    .set_face_culling(FaceCulling {
+                        mode: FaceCullingMode::Back,
+                        ..Default::default()
+                    });
                 rdr_gate.render(&render_state, |mut tess_gate| tess_gate.render(&*door_tess))
             })?;
         }
 
         unsafe {
-            gl::DepthMask(gl::TRUE);
-            gl::ColorMask(gl::TRUE, gl::TRUE, gl::TRUE, gl::TRUE);
             gl::StencilFunc(gl::NOTEQUAL, 1, 0xFF);
         }
 
