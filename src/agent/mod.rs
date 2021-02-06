@@ -231,25 +231,13 @@ pub fn gameloop(
                     glyph_brush.draw_queued(&mut pipeline, &mut shd_gate, 1024, 720)?;
 
                     let level = &agent_state.map.level;
-                    for (column, rooms) in level.rooms.iter().enumerate() {
-                        for (row, room) in rooms.iter().enumerate() {
-                            match room {
-                                crate::level::Room::FullRoom(doorways) => {
-                                    room_model.draw(
-                                        &mut pipeline,
-                                        &mut shd_gate,
-                                        view,
-                                        projection,
-                                        (column, row),
-                                        doorways,
-                                    )?;
-                                }
-                                _ => {
-                                    // TODO render hallways
-                                }
-                            }
-                        }
-                    }
+                    room_model.draw(
+                        &mut pipeline,
+                        &mut shd_gate,
+                        view,
+                        projection,
+                        &level.rooms,
+                    )?;
 
                     let bound_tex = pipeline.bind_texture(&mut flower_sprite)?;
 

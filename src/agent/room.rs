@@ -100,7 +100,52 @@ impl RoomModel {
         }
     }
 
-    pub fn draw(
+    pub fn draw<'r, I, J>(
+        &mut self,
+        pipeline: &mut Pipeline<GL33>,
+        shd_gate: &mut ShadingGate<GL33>,
+        view_mat: Mat4,
+        projection_mat: Mat4,
+        rooms: I,
+    ) -> Result<(), PipelineError>
+    where
+        I: IntoIterator<Item = J>,
+        J: IntoIterator<Item = &'r level::Room>,
+    {
+        unsafe {
+            gl::Enable(gl::STENCIL_TEST);
+            gl::StencilFunc(gl::EQUAL, 0, 0xFF);
+            gl::StencilOp(gl::KEEP, gl::KEEP, gl::INCR);
+        };
+
+        for (column, rooms) in rooms.into_iter().enumerate() {
+            for (row, room) in rooms.into_iter().enumerate() {
+                match room {
+                    crate::level::Room::FullRoom(doorways) => {
+                        self.draw_one(
+                            pipeline,
+                            shd_gate,
+                            view_mat,
+                            projection_mat,
+                            (column, row),
+                            doorways,
+                        )?;
+                    }
+                    _ => {
+                        // TODO render hallways
+                    }
+                }
+            }
+        }
+
+        unsafe {
+            gl::StencilOp(gl::KEEP, gl::KEEP, gl::KEEP);
+        }
+
+        Ok(())
+    }
+
+    fn draw_one(
         &mut self,
         _pipeline: &mut Pipeline<GL33>,
         shd_gate: &mut ShadingGate<GL33>,
@@ -125,13 +170,6 @@ impl RoomModel {
             + Vec2::new(constants::ROOM_WIDTH, constants::ROOM_LENGTH) * 0.5;
         let translation = Vec3::new(pos.x, 0., pos.y);
         let room_model_mat = Mat4::from_translation(translation);
-
-        unsafe {
-            gl::Clear(gl::STENCIL_BUFFER_BIT);
-            gl::Enable(gl::STENCIL_TEST);
-            gl::StencilFunc(gl::ALWAYS, 1, 0xFF);
-            gl::StencilOp(gl::KEEP, gl::KEEP, gl::REPLACE);
-        }
 
         for &door_coord in doors {
             let (rotation, translation) = level::doorway_transform(room_coord, door_coord);
@@ -163,10 +201,6 @@ impl RoomModel {
             })?;
         }
 
-        unsafe {
-            gl::StencilFunc(gl::NOTEQUAL, 1, 0xFF);
-        }
-
         shd_gate.shade(wall_shader, |mut int, uni, mut rdr_gate| {
             int.set(&uni.model, room_model_mat.into());
             int.set(&uni.view, view_mat.into());
@@ -180,7 +214,7 @@ impl RoomModel {
         })?;
 
         unsafe {
-            gl::StencilOp(gl::KEEP, gl::KEEP, gl::KEEP);
+            gl::Clear(gl::STENCIL_BUFFER_BIT);
         }
 
         Ok(())
