@@ -1,9 +1,22 @@
+use std::f32::consts::PI;
+
 use libplen::constants;
 use libplen::math::{vec2, Vec2};
+
+use luminance::shader::Uniform;
+use luminance_derive::{Semantics, UniformInterface, Vertex};
 use sdl2::rect::Rect;
 use sdl2::render::{Canvas, Texture};
 use sdl2::video::Window;
-use std::f32::consts::PI;
+
+#[derive(UniformInterface)]
+pub struct RectInterface {
+    pub position: Uniform<[f32; 2]>,
+    pub size: Uniform<[f32; 2]>,
+    pub color: Uniform<[f32; 4]>,
+}
+
+pub type RectShader = luminance::shader::Program<luminance_gl::GL33, (), (), RectInterface>;
 
 pub fn draw_texture(
     canvas: &mut Canvas<Window>,

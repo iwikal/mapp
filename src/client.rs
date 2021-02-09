@@ -4,12 +4,14 @@ mod dispatcher;
 mod map;
 mod menu;
 mod rendering;
+mod shader;
 mod surface;
 
 use std::io::prelude::*;
 use std::net::TcpStream;
 use std::time::Instant;
 
+use luminance::context::GraphicsContext;
 use sdl2::event::{Event, WindowEvent};
 use sdl2::keyboard::{Keycode, Scancode};
 use sdl2::mouse::MouseButton;
@@ -90,9 +92,36 @@ pub fn main() -> Result<(), String> {
 
     let mut event_pump = sdl.event_pump().expect("Could not get event pump");
 
-    let mut sdl = Some(sdl);
+    let mut surface = surface::Sdl2Surface::build_with(sdl, |video| {
+        video.gl_attr().set_stencil_size(8);
+        let mut wb = video.window(
+            "MAPP",
+            constants::WINDOW_SIZE as u32,
+            constants::WINDOW_SIZE as u32,
+        );
+        wb.fullscreen_desktop().resizable();
+        wb
+    })
+    .expect("Could not create rendering surface");
 
-    // TODO: only create a window and load assets once
+    let mut glyph_brush = {
+        let ttf = include_bytes!("../resources/yoster.ttf");
+        let font = ab_glyph::FontArc::try_from_slice(ttf).expect("Could not load font");
+        luminance_glyph::GlyphBrushBuilder::using_font(font).build(&mut surface)
+    };
+
+    let rect_tess = surface
+        .new_tess()
+        .set_vertex_nb(4)
+        .set_mode(luminance::tess::Mode::TriangleFan)
+        .build()
+        .unwrap();
+
+    let mut rect_program = {
+        let vs = include_str!("../shaders/rect.vert");
+        let fs = include_str!("../shaders/rect.frag");
+        shader::compile_shader::<(), (), rendering::RectInterface>(&mut surface, vs, fs)
+    };
 
     'mainloop: loop {
         let menu_state = &mut MenuState::new(my_id);
@@ -100,30 +129,9 @@ pub fn main() -> Result<(), String> {
         video_subsystem.text_input().start();
         menu_state.name = name;
 
-        let sound_assets;
         let player_type;
 
         {
-            let window = video_subsystem
-                .window(
-                    "MAPP",
-                    constants::WINDOW_SIZE as u32,
-                    constants::WINDOW_SIZE as u32,
-                )
-                .fullscreen_desktop()
-                .resizable()
-                .build()
-                .expect("Could not create window");
-
-            let mut canvas = window
-                .into_canvas()
-                .build()
-                .expect("Could not create canvas");
-            canvas.set_blend_mode(BlendMode::Blend);
-            let texture_creator = canvas.texture_creator();
-
-            let assets = Assets::new(&texture_creator, &ttf_context, SoundAssets::new());
-
             'menuloop: loop {
                 let mut current_mouse_click: Option<(i32, i32)> = None;
 
@@ -154,11 +162,9 @@ pub fn main() -> Result<(), String> {
                         _ => {}
                     }
                 }
-                rendering::setup_coordinates(&mut canvas)?;
 
-                let window_size = canvas.logical_size();
                 let messages_to_send =
-                    menu_state.update(&mut reader, current_mouse_click, window_size);
+                    menu_state.update(&mut reader, current_mouse_click, surface.window().size());
                 for message in messages_to_send {
                     send_client_message(&message, &mut reader.stream);
                 }
@@ -169,7 +175,7 @@ pub fn main() -> Result<(), String> {
                     .map(|player| player.player_type);
 
                 menu_state
-                    .draw(&mut canvas, &assets, my_player_type)
+                    .draw(&mut surface, &mut glyph_brush, &rect_tess, &mut rect_program, my_player_type)
                     .unwrap();
 
                 if let Some(player) = menu_state.game_state.get_player_by_id(my_id) {
@@ -177,8 +183,6 @@ pub fn main() -> Result<(), String> {
                     break 'menuloop;
                 }
             }
-
-            sound_assets = assets.sounds
         };
 
         video_subsystem.text_input().stop();
@@ -187,14 +191,14 @@ pub fn main() -> Result<(), String> {
 
         match player_type {
             libplen::player::PlayerType::Agent => {
-                let (result, returned_sdl) = agent::gameloop(
-                    sdl.take().unwrap(),
+                surface.sdl().mouse().set_relative_mouse_mode(true);
+                let result = agent::gameloop(
+                    &mut surface,
                     &mut event_pump,
                     &mut reader,
-                    &sound_assets,
                     my_id,
                 );
-                sdl = Some(returned_sdl);
+                surface.sdl().mouse().set_relative_mouse_mode(false);
 
                 match result {
                     StateResult::Quit => break 'mainloop,
@@ -203,27 +207,6 @@ pub fn main() -> Result<(), String> {
                 }
             }
             libplen::player::PlayerType::Dispatcher => {
-                let my_sdl = sdl.take().unwrap();
-                let video_subsystem = my_sdl.video().expect("Could not initialize SDL video");
-                let window = video_subsystem
-                    .window(
-                        "MAPP",
-                        constants::WINDOW_SIZE as u32,
-                        constants::WINDOW_SIZE as u32,
-                    )
-                    .fullscreen_desktop()
-                    .resizable()
-                    .build()
-                    .expect("Could not create window");
-
-                let mut canvas = window
-                    .into_canvas()
-                    .build()
-                    .expect("Could not create canvas");
-                canvas.set_blend_mode(BlendMode::Blend);
-                let texture_creator = canvas.texture_creator();
-                let assets = Assets::new(&texture_creator, &ttf_context, SoundAssets::new());
-
                 let dispatcher_state = &mut DispatcherState::new(my_id);
 
                 let result = 'dispatcher_loop: loop {
@@ -241,16 +224,14 @@ pub fn main() -> Result<(), String> {
                     }
                     dispatcher_state.update(&mut reader, &event_pump.keyboard_state());
 
-                    rendering::setup_coordinates(&mut canvas)?;
-                    canvas.set_draw_color(constants::MENU_BACKGROUND_COLOR);
-                    canvas.clear();
+                    // rendering::setup_coordinates(&mut canvas)?;
+                    // canvas.set_draw_color(constants::MENU_BACKGROUND_COLOR);
+                    // canvas.clear();
 
-                    dispatcher_state.draw(&mut canvas, &assets).unwrap();
+                    // dispatcher_state.draw(&mut canvas, &assets).unwrap();
 
-                    canvas.present();
+                    // canvas.present();
                 };
-
-                sdl = Some(my_sdl);
 
                 match result {
                     StateResult::Quit => break 'mainloop,

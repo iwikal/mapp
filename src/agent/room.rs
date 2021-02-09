@@ -17,8 +17,8 @@ use ultraviolet::{Mat3, Mat4, Vec2, Vec3, Vec4};
 
 use libplen::level;
 
-use super::shader::compile_shader;
 use super::surface::Sdl2Surface;
+use crate::shader::compile_shader;
 use crate::constants;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Semantics)]

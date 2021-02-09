@@ -1,5 +1,4 @@
 mod room;
-mod shader;
 mod sprite;
 
 use std::time::Instant;
@@ -124,36 +123,20 @@ impl AgentState {
 }
 
 pub fn gameloop(
-    sdl: sdl2::Sdl,
+    surface: &mut surface::Sdl2Surface,
     event_pump: &mut EventPump,
     server_reader: &mut MessageReader,
-    sounds: &SoundAssets,
     my_id: u64,
-) -> (StateResult, sdl2::Sdl) {
-    sdl.mouse().set_relative_mouse_mode(true);
-
-    let mut surface = surface::Sdl2Surface::build_with(sdl, |video| {
-        video.gl_attr().set_stencil_size(8);
-        let mut wb = video.window(
-            "MAPP",
-            constants::WINDOW_SIZE as u32,
-            constants::WINDOW_SIZE as u32,
-        );
-        wb.fullscreen_desktop();
-        wb.resizable();
-        wb
-    })
-    .expect("Could not create rendering surface");
-
+) -> StateResult {
     let mut back_buffer = surface.back_buffer().expect("Could not get back buffer");
 
     let mut sprite_program = {
         let vs = include_str!("../../shaders/sprite.vert");
         let fs = include_str!("../../shaders/sprite.frag");
-        shader::compile_shader::<(), (), sprite::SpriteInterface>(&mut surface, vs, fs)
+        crate::shader::compile_shader::<(), (), sprite::SpriteInterface>(surface, vs, fs)
     };
 
-    let mut room_model = room::RoomModel::new(&mut surface);
+    let mut room_model = room::RoomModel::new(surface);
 
     let sprite_tess = surface
         .new_tess()
@@ -165,7 +148,7 @@ pub fn gameloop(
     let mut glyph_brush = {
         let ttf = include_bytes!("../../resources/yoster.ttf");
         let font = ab_glyph::FontArc::try_from_slice(ttf).expect("Could not load font");
-        GlyphBrushBuilder::using_font(font).build(&mut surface)
+        GlyphBrushBuilder::using_font(font).build(surface)
     };
 
     let agent_state = &mut AgentState::new(my_id);
@@ -180,7 +163,7 @@ pub fn gameloop(
     let mut projection = make_projection_matrix(&surface);
     let mut resize = false;
 
-    let mut flower_sprite = sprite::load_sprite(&mut surface, "resources/flower.png");
+    let mut flower_sprite = sprite::load_sprite(surface, "resources/flower.png");
 
     loop {
         for event in event_pump.poll_iter() {
@@ -190,8 +173,7 @@ pub fn gameloop(
                     ..
                 }
                 | Event::Quit { .. } => {
-                    let (sdl, ..) = surface.into_parts();
-                    return (StateResult::Quit, sdl);
+                    return StateResult::Quit;
                 }
                 Event::Window {
                     win_event: WindowEvent::SizeChanged(..),
@@ -202,7 +184,6 @@ pub fn gameloop(
         }
 
         if resize {
-            let (w, h) = surface.window().drawable_size();
             back_buffer = surface.back_buffer().unwrap();
             projection = make_projection_matrix(&surface);
             resize = false;
@@ -212,7 +193,7 @@ pub fn gameloop(
         let keyboard_state = event_pump.keyboard_state();
 
         agent_state.update(server_reader, &keyboard_state, &mouse_state);
-        glyph_brush.process_queued(&mut surface);
+        glyph_brush.process_queued(surface);
 
         let myself = agent_state.myself();
 
